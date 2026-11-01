@@ -38,13 +38,26 @@ data class Txn(
     val toId: Long
 )
 
+@Entity(tableName = "favorites")
+data class Favorite(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val cents: Long,
+    val note: String,
+    val fromId: Long,
+    val toId: Long
+)
+
 @Dao
 interface AppDao {
-    @Query("SELECT * FROM accounts ORDER BY groupName, name")
+    @Query("SELECT * FROM accounts ORDER BY id")
     fun accounts(): Flow<List<Account>>
 
     @Query("SELECT * FROM transactions ORDER BY date DESC, id DESC")
     fun txns(): Flow<List<Txn>>
+
+    @Query("SELECT * FROM favorites ORDER BY id")
+    fun favorites(): Flow<List<Favorite>>
 
     @Query("SELECT COUNT(*) FROM accounts")
     suspend fun accountCount(): Int
@@ -53,13 +66,19 @@ interface AppDao {
     suspend fun insertAccount(a: Account): Long
 
     @Insert
-    suspend fun insertTxn(t: Txn): Long
+    suspend fun insertTxns(list: List<Txn>)
+
+    @Insert
+    suspend fun insertFavorite(f: Favorite): Long
 
     @Delete
     suspend fun deleteTxn(t: Txn)
+
+    @Delete
+    suspend fun deleteFavorite(f: Favorite)
 }
 
-@Database(entities = [Account::class, Txn::class], version = 1, exportSchema = false)
+@Database(entities = [Account::class, Txn::class, Favorite::class], version = 1, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun dao(): AppDao
 
