@@ -63,6 +63,14 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { dao.insertAccount(Account(name = name, type = type, groupName = group)) }
     }
 
+    fun updateAccount(a: Account) {
+        viewModelScope.launch { dao.updateAccount(a) }
+    }
+
+    fun deleteAccount(a: Account) {
+        viewModelScope.launch { dao.deleteAccount(a) }
+    }
+
     fun addTxns(list: List<Txn>, favorite: Favorite?) {
         viewModelScope.launch {
             dao.insertTxns(list)
@@ -72,6 +80,15 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun deleteTxn(t: Txn) {
         viewModelScope.launch { dao.deleteTxn(t) }
+    }
+
+    fun resetAll() {
+        viewModelScope.launch {
+            dao.clearTxns()
+            dao.clearFavorites()
+            dao.clearAccounts()
+            seed()
+        }
     }
 
     fun deleteFavorite(f: Favorite) {

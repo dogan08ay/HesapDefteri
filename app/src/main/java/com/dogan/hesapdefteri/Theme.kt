@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,7 +78,13 @@ fun AppBackground(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun TopBar(title: String, onBack: (() -> Unit)?, onHome: (() -> Unit)?) {
+fun TopBar(
+    title: String,
+    onBack: (() -> Unit)?,
+    onHome: (() -> Unit)?,
+    onMenu: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null
+) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -95,9 +103,23 @@ fun TopBar(title: String, onBack: (() -> Unit)?, onHome: (() -> Unit)?) {
             fontSize = 20.sp,
             modifier = Modifier.align(Alignment.Center)
         )
-        if (onHome != null) {
-            IconButton(onClick = onHome, modifier = Modifier.align(Alignment.CenterEnd)) {
-                Icon(Icons.Default.Home, contentDescription = "Ana sayfa", tint = Color.White)
+        if (onHome != null || onEdit != null) {
+            Row(Modifier.align(Alignment.CenterEnd)) {
+                if (onHome != null) {
+                    IconButton(onClick = onHome) {
+                        Icon(Icons.Default.Home, contentDescription = "Ana sayfa", tint = Color.White)
+                    }
+                }
+                if (onEdit != null) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Düzenle", tint = Color.White)
+                    }
+                }
+            }
+        }
+        if (onMenu != null) {
+            IconButton(onClick = onMenu, modifier = Modifier.align(Alignment.CenterEnd)) {
+                Icon(Icons.Default.Menu, contentDescription = "Menü", tint = Color.White)
             }
         }
     }

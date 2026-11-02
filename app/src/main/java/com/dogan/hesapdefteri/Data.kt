@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 enum class AccountType(val label: String) {
@@ -65,11 +66,26 @@ interface AppDao {
     @Insert
     suspend fun insertAccount(a: Account): Long
 
+    @Update
+    suspend fun updateAccount(a: Account)
+
+    @Delete
+    suspend fun deleteAccount(a: Account)
+
     @Insert
     suspend fun insertTxns(list: List<Txn>)
 
     @Insert
     suspend fun insertFavorite(f: Favorite): Long
+
+    @Query("DELETE FROM transactions")
+    suspend fun clearTxns()
+
+    @Query("DELETE FROM favorites")
+    suspend fun clearFavorites()
+
+    @Query("DELETE FROM accounts")
+    suspend fun clearAccounts()
 
     @Delete
     suspend fun deleteTxn(t: Txn)
