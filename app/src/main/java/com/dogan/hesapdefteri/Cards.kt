@@ -1,0 +1,79 @@
+package com.dogan.hesapdefteri
+
+import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.YearMonth
+
+fun parseCents(text: String): Long? =
+    text.trim().replace(',', '.').toBigDecimalOrNull()?.multiply(BigDecimal(100))?.toLong()
+
+fun clampDay(ym: YearMonth, day: Int): LocalDate = ym.atDay(minOf(day, ym.lengthOfMonth()))
+
+/** Verilen tarihe kadar gelen en son hesap kesim tarihi (o gün dahil). */
+fun lastCutoff(day: Int, ref: LocalDate): LocalDate {
+    val thisMonth = clampDay(YearMonth.from(ref), day)
+    return if (!thisMonth.isAfter(ref)) thisMonth else clampDay(YearMonth.from(ref).minusMonths(1), day)
+}
+
+data class CardInfo(
+    val limit: Long?,
+    val remaining: Long?,
+    val debtToday: Long,
+    val futureCharges: Long,
+    val cutoffDay: Int?,
+    val lastCutoff: LocalDate?,
+    val prevCutoff: LocalDate?,
+    val nextCutoff: LocalDate?,
+    val statementDebt: Long,
+    val periodSpend: Long
+)
+
+/**
+ * Banka mantığı: hesap kesim gününde o güne kadarki borç ekstre borcu olur.
+ * Kesimden sonraki harcamalar güncel borca eklenir ama ekstreye girmez.
+ * Kesimden sonra yapılan ödemeler önce ekstre borcunu düşürür.
+ */
+fun cardInfo(acc: Account, accounts: List<Account>, txns: List<Txn>, today: LocalDate = LocalDate.now()): CardInfo {
+    val byId = accounts.associateBy { it.id }
+    val ids = subtreeIds(accounts, acc.id)
+    val todayDay = today.toEpochDay()
+    val day = acc.cutoffDay
+    val last = if (day != null) lastCutoff(day, today) else null
+    val prev = if (day != null && last != null) clampDay(YearMonth.from(last).minusMonths(1), day) else null
+    val next = if (day != null && last != null) clampDay(YearMonth.from(last).plusMonths(1), day) else null
+    val lastDay = last?.toEpochDay()
+
+    var debtToday = 0L
+    var future = 0L
+    var debtAtL = 0L
+    var payAfter = 0L
+    var chargeAfter = 0L
+    for (t in txns) {
+        val d = txnDelta(t, byId, ids)
+        if (d == 0L) continue
+        if (t.date > todayDay) {
+            if (d > 0) future += d
+            continue
+        }
+        debtToday += d
+        if (lastDay != null) {
+            if (t.date <= lastDay) {
+                debtAtL += d
+            } else if (d < 0) {
+                payAfter += -d
+            } else {
+                chargeAfter += d
+            }
+        }
+    }
+    var statement = 0L
+    var period = 0L
+    if (lastDay != null) {
+        statement = maxOf(0L, debtAtL - payAfter)
+        val over = maxOf(0L, payAfter - maxOf(debtAtL, 0L))
+        period = maxOf(0L, chargeAfter - over)
+    }
+    val limit = acc.limitCents
+    val remaining = if (limit != null) limit - debtToday - future else null
+    return CardInfo(limit, remaining, debtToday, future, day, last, prev, next, statement, period)
+}

@@ -10,6 +10,7 @@ import android.app.Activity
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
@@ -94,7 +95,7 @@ sealed interface Screen {
         val accountId: Long?,
         val back: Screen
     ) : Screen
-    data class AddAccount(val type: AccountType, val group: String, val back: Screen) : Screen
+    data class AddAccount(val type: AccountType, val group: String, val parentId: Long?, val back: Screen) : Screen
     data object Favorites : Screen
     data object Update : Screen
     data object Settings : Screen
@@ -115,7 +116,11 @@ fun balances(accounts: List<Account>, txns: List<Txn>, month: YearMonth): Map<Lo
     fun apply(acc: Account?, date: Long, cents: Long, isTarget: Boolean) {
         if (acc == null) return
         val periodic = acc.type == AccountType.INCOME || acc.type == AccountType.EXPENSE
-        if (periodic && (date < start || date > end)) return
+        if (periodic) {
+            if (date < start || date > end) return
+        } else if (date > end) {
+            return
+        }
         val plusOnTarget = acc.type == AccountType.ASSET || acc.type == AccountType.EXPENSE
         val delta = if (isTarget == plusOnTarget) cents else -cents
         res[acc.id] = (res[acc.id] ?: 0L) + delta
@@ -132,6 +137,58 @@ fun groupTotals(accounts: List<Account>, type: AccountType, bal: Map<Long, Long>
     accounts.filter { it.type == type }
         .groupBy { it.groupName }
         .map { (g, list) -> g to list.sumOf { bal[it.id] ?: 0L } }
+
+fun subtreeIds(accounts: List<Account>, rootId: Long): Set<Long> {
+    val out = HashSet<Long>()
+    val stack = ArrayList<Long>()
+    stack.add(rootId)
+    while (stack.isNotEmpty()) {
+        val id = stack.removeAt(stack.size - 1)
+        if (out.add(id)) accounts.filter { it.parentId == id }.forEach { stack.add(it.id) }
+    }
+    return out
+}
+
+fun rollupBalances(accounts: List<Account>, bal: Map<Long, Long>): Map<Long, Long> {
+    val kids = accounts.groupBy { it.parentId }
+    val res = HashMap<Long, Long>()
+    fun total(id: Long): Long {
+        val known = res[id]
+        if (known != null) return known
+        val t = (bal[id] ?: 0L) + (kids[id]?.sumOf { total(it.id) } ?: 0L)
+        res[id] = t
+        return t
+    }
+    accounts.forEach { total(it.id) }
+    return res
+}
+
+fun flatTree(list: List<Account>): List<Pair<Account, Int>> {
+    val kids = list.groupBy { it.parentId }
+    val out = ArrayList<Pair<Account, Int>>()
+    fun walk(parent: Long?, depth: Int) {
+        kids[parent]?.forEach {
+            out.add(it to depth)
+            walk(it.id, depth + 1)
+        }
+    }
+    walk(null, 0)
+    return out
+}
+
+/** Kategori › üst kalemler (hesabın kendi adı hariç). */
+fun trail(a: Account, byId: Map<Long, Account>): String {
+    val parts = ArrayList<String>()
+    var cur: Account? = a.parentId?.let { byId[it] }
+    var guard = 0
+    while (cur != null && guard < 20) {
+        parts.add(0, cur.name)
+        cur = cur.parentId?.let { byId[it] }
+        guard++
+    }
+    parts.add(0, a.groupName)
+    return parts.joinToString(" › ")
+}
 
 fun favType(accounts: List<Account>, f: Favorite): AccountType {
     val fromT = accounts.firstOrNull { it.id == f.fromId }?.type
@@ -175,7 +232,10 @@ fun App(vm: MainVm) {
             Screen.Home -> Screen.Home
             is Screen.Category -> Screen.Home
             is Screen.Group -> Screen.Category(s.type)
-            is Screen.AccountDetail -> Screen.Group(s.type, s.group)
+            is Screen.AccountDetail -> {
+                val pid = accounts.firstOrNull { it.id == s.accountId }?.parentId
+                if (pid != null) Screen.AccountDetail(s.type, s.group, pid) else Screen.Group(s.type, s.group)
+            }
             is Screen.Chart -> if (s.group != null) Screen.Group(s.type, s.group) else Screen.Category(s.type)
             is Screen.TxTypes -> s.back
             is Screen.AddTxn -> s.back
@@ -231,7 +291,7 @@ fun App(vm: MainVm) {
             onAddTxn = { openNewTx(s.type, null, s) },
             onOpenGroup = { screen = Screen.Group(s.type, it) },
             onChart = { screen = Screen.Chart(s.type, null, it) },
-            onAddAccount = { screen = Screen.AddAccount(s.type, "", s) }
+            onAddAccount = { screen = Screen.AddAccount(s.type, "", null, s) }
         )
         is Screen.Group -> GroupScreen(
             s.type, s.group, accounts, txns, month,
@@ -239,7 +299,7 @@ fun App(vm: MainVm) {
             onBack = { goBack() },
             onHome = { screen = Screen.Home },
             onAddTxn = { openNewTx(s.type, s.group, s) },
-            onAddAccount = { screen = Screen.AddAccount(s.type, s.group, s) },
+            onAddAccount = { parent -> screen = Screen.AddAccount(s.type, s.group, parent?.id, s) },
             onChart = { screen = Screen.Chart(s.type, s.group, it) },
             onOpenAccount = { a -> screen = Screen.AccountDetail(s.type, s.group, a.id) },
             onRename = { a, n -> vm.updateAccount(a.copy(name = n)) },
@@ -252,11 +312,13 @@ fun App(vm: MainVm) {
             onBack = { goBack() },
             onHome = { screen = Screen.Home },
             onAddTxn = { openNewTx(s.type, s.group, s, s.accountId) },
+            onOpenAccount = { a -> screen = Screen.AccountDetail(s.type, s.group, a.id) },
+            onAddSub = { screen = Screen.AddAccount(s.type, s.group, s.accountId, s) },
+            onUpdateAccount = { vm.updateAccount(it) },
             onDelete = { vm.deleteTxn(it) }
         )
         is Screen.Chart -> ChartScreen(
             s.type, s.group, accounts, txns, month, s.pie,
-            onMonth = { month = it },
             onBack = { goBack() },
             onHome = { screen = Screen.Home }
         )
@@ -272,7 +334,9 @@ fun App(vm: MainVm) {
                 s.type, accounts, bal, s.fav, s.preset, s.accountId,
                 onBack = { goBack() },
                 onHome = { screen = Screen.Home },
-                onNewAccount = { name, group, type, done -> vm.addAccount(name, group, type, done) },
+                onNewAccount = { name, group, type, parentId, limit, cutoff, done ->
+                    vm.addAccount(name, group, type, parentId, limit, cutoff, done)
+                },
                 onSave = { list, fav ->
                     vm.addTxns(list, fav)
                     screen = (s.back as? Screen.TxTypes)?.back ?: s.back
@@ -280,11 +344,11 @@ fun App(vm: MainVm) {
             )
         }
         is Screen.AddAccount -> AddAccountScreen(
-            s.type, s.group, accounts,
+            s.type, s.group, s.parentId?.let { id -> accounts.firstOrNull { it.id == id } }, accounts,
             onBack = { goBack() },
             onHome = { screen = Screen.Home },
-            onSave = { name, group ->
-                vm.addAccount(name, group, s.type)
+            onSave = { name, group, limit, cutoff ->
+                vm.addAccount(name, group, s.type, s.parentId, limit, cutoff)
                 goBack()
             }
         )
@@ -400,6 +464,7 @@ fun HomeScreen(
                         TypeCard(AccountType.INCOME, total(AccountType.INCOME), { onOpen(AccountType.INCOME) }, { onAdd(AccountType.INCOME) }, Modifier.weight(1f))
                         TypeCard(AccountType.EXPENSE, total(AccountType.EXPENSE), { onOpen(AccountType.EXPENSE) }, { onAdd(AccountType.EXPENSE) }, Modifier.weight(1f))
                     }
+                    MonthlyBudgetCard(accounts, txns, month)
                     FavoritesEntry(onOpenFavs)
                     DailyCard(accounts, txns)
                 }
@@ -655,7 +720,7 @@ fun GroupScreen(
     onBack: () -> Unit,
     onHome: () -> Unit,
     onAddTxn: () -> Unit,
-    onAddAccount: () -> Unit,
+    onAddAccount: (Account?) -> Unit,
     onChart: (Boolean) -> Unit,
     onOpenAccount: (Account) -> Unit,
     onRename: (Account, String) -> Unit,
@@ -663,8 +728,10 @@ fun GroupScreen(
     onDelete: (Txn) -> Unit
 ) {
     val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
+    val roll = remember(accounts, bal) { rollupBalances(accounts, bal) }
     val byId = remember(accounts) { accounts.associateBy { it.id } }
     val mine = accounts.filter { it.type == type && it.groupName == group }
+    val tree = remember(mine) { flatTree(mine) }
     val ids = mine.map { it.id }.toSet()
     val total = mine.sumOf { bal[it.id] ?: 0L }
     val periodic = type == AccountType.INCOME || type == AccountType.EXPENSE
@@ -706,41 +773,66 @@ fun GroupScreen(
                 }
                 if (editMode) {
                     Text(
-                        "Düzenleme açık: bir hesabın adına dokunarak adını değiştir, çöp kutusuyla sil.",
+                        "Düzenleme açık: bir kalemin adına dokunarak adını değiştir, çöp kutusuyla sil.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
                 message?.let { Text(it, color = NegativeRed) }
                 WhiteBox {
-                    SectionHeader("Hesaplar")
-                    mine.forEach { a ->
-                        val v = bal[a.id] ?: 0L
+                    SectionHeader("Hesaplar ve alt kalemler")
+                    tree.forEach { (a, depth) ->
+                        val v = roll[a.id] ?: 0L
+                        val rowCard = if (a.type == AccountType.LIABILITY && a.groupName == G_CARD && a.limitCents != null) {
+                            cardInfo(a, accounts, txns)
+                        } else null
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable { if (editMode) { renaming = a; renameText = a.name } else onOpenAccount(a) }
-                                .padding(horizontal = 14.dp, vertical = if (editMode) 3.dp else 11.dp),
+                                .padding(start = (14 + depth * 18).dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(a.name, Modifier.weight(1f), color = GreenText, fontWeight = FontWeight.Bold)
+                            Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+                                Text(
+                                    a.name,
+                                    color = GreenText,
+                                    fontWeight = if (depth == 0) FontWeight.Bold else FontWeight.Medium
+                                )
+                                val rem = rowCard?.remaining
+                                if (rem != null) {
+                                    Text(
+                                        "Kalan limit: " + money(rem),
+                                        fontSize = 10.sp,
+                                        color = if (rem < 0) NegativeRed else Color.Gray
+                                    )
+                                }
+                            }
                             Text(money(v), color = if (v < 0) NegativeRed else Color.DarkGray)
                             if (editMode) {
                                 IconButton(onClick = {
-                                    if (txns.any { it.fromId == a.id || it.toId == a.id }) {
-                                        message = "“${a.name}” hesabında işlem var, silinemez."
+                                    val hasKids = mine.any { it.parentId == a.id }
+                                    if (hasKids) {
+                                        message = "“${a.name}” altında kalemler var, önce onları sil."
+                                    } else if (txns.any { it.fromId == a.id || it.toId == a.id }) {
+                                        message = "“${a.name}” kaleminde işlem var, silinemez."
                                     } else {
                                         message = null
                                         onDeleteAccount(a)
                                     }
-                                }) { Icon(Icons.Default.Delete, contentDescription = "Hesabı sil") }
+                                }, modifier = Modifier.size(36.dp)) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Sil", modifier = Modifier.size(20.dp))
+                                }
                             } else {
-                                Text("›", Modifier.padding(start = 8.dp), color = Color.Gray, fontSize = 20.sp)
+                                IconButton(onClick = { onAddAccount(a) }, modifier = Modifier.size(36.dp)) {
+                                    Icon(Icons.Default.Add, contentDescription = "Alt kalem ekle", tint = GreenText, modifier = Modifier.size(20.dp))
+                                }
+                                Text("›", color = Color.Gray, fontSize = 20.sp)
                             }
                         }
                         HorizontalDivider()
                     }
                     Box(Modifier.padding(10.dp)) {
-                        AddPanel("Yeni hesap ekle", typeColor(type), onAddAccount)
+                        AddPanel("Yeni hesap ekle", typeColor(type)) { onAddAccount(null) }
                     }
                 }
                 TxnTable("İşlemler", list, byId, ids) { onDelete(it) }
@@ -751,7 +843,7 @@ fun GroupScreen(
     renaming?.let { acc ->
         AlertDialog(
             onDismissRequest = { renaming = null },
-            title = { Text("Hesap adı") },
+            title = { Text("Kalem adı") },
             text = {
                 OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true)
             },
@@ -767,6 +859,82 @@ fun GroupScreen(
 }
 
 @Composable
+fun InfoRow(label: String, value: String, color: Color = Color.DarkGray, bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), fontSize = 12.sp)
+        Spacer(Modifier.width(8.dp))
+        Text(value, color = color, fontSize = 13.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium)
+    }
+}
+
+@Composable
+fun CardSummary(info: CardInfo, onEdit: () -> Unit) {
+    val fmt = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+    val green = Color(0xFF1E8A5E)
+    WhiteBox {
+        SectionHeader("Kart özeti")
+        Spacer(Modifier.height(4.dp))
+        val limit = info.limit
+        val remaining = info.remaining
+        if (limit != null && remaining != null) {
+            InfoRow("Kart limiti", money(limit))
+            InfoRow("Kalan limit", money(remaining), if (remaining < 0) NegativeRed else green, bold = true)
+        } else {
+            Text("Kart limiti girilmemiş.", Modifier.padding(horizontal = 14.dp, vertical = 6.dp), fontSize = 12.sp, color = Color.Gray)
+        }
+        InfoRow("Güncel toplam borç", money(info.debtToday), NegativeRed, bold = true)
+        val last = info.lastCutoff
+        val next = info.nextCutoff
+        if (last != null && next != null) {
+            HorizontalDivider(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), color = Color(0xFFDDDDDD))
+            InfoRow("Ekstre borcu (kesim ${last.format(fmt)})", money(info.statementDebt), Color(0xFF3F6E80), bold = true)
+            InfoRow("Dönem içi harcama (ekstreye dahil değil)", money(info.periodSpend))
+            InfoRow("Sonraki hesap kesim tarihi", next.format(fmt))
+        } else {
+            Text("Hesap kesim günü girilmemiş.", Modifier.padding(horizontal = 14.dp, vertical = 6.dp), fontSize = 12.sp, color = Color.Gray)
+        }
+        if (info.futureCharges > 0) {
+            InfoRow("Gelecek taksitler", money(info.futureCharges))
+        }
+        Box(Modifier.padding(10.dp)) {
+            OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text("Limit ve hesap kesim gününü düzenle") }
+        }
+    }
+}
+
+@Composable
+fun CardSettingsDialog(acc: Account, onDismiss: () -> Unit, onSave: (Account) -> Unit) {
+    var limitText by remember {
+        mutableStateOf(acc.limitCents?.let { String.format(Locale.US, "%.2f", it / 100.0) } ?: "")
+    }
+    var dayText by remember { mutableStateOf(acc.cutoffDay?.toString() ?: "") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Kart ayarları") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                CompactField(limitText, { limitText = it }, "Kart limiti (TL)", KeyboardType.Decimal, flat = true)
+                CompactField(dayText, { dayText = it }, "Hesap kesim günü (1-31)", KeyboardType.Number, flat = true)
+                error?.let { Text(it, color = NegativeRed, fontSize = 12.sp) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val limit = if (limitText.isBlank()) null else parseCents(limitText)
+                val day = if (dayText.isBlank()) null else dayText.trim().toIntOrNull()
+                when {
+                    limitText.isNotBlank() && (limit == null || limit < 0) -> error = "Geçerli bir limit girin."
+                    dayText.isNotBlank() && (day == null || day < 1 || day > 31) -> error = "Gün 1 ile 31 arasında olmalı."
+                    else -> onSave(acc.copy(limitCents = limit, cutoffDay = day))
+                }
+            }) { Text("Kaydet") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Vazgeç") } }
+    )
+}
+
+@Composable
 fun AccountDetailScreen(
     type: AccountType,
     group: String,
@@ -778,35 +946,50 @@ fun AccountDetailScreen(
     onBack: () -> Unit,
     onHome: () -> Unit,
     onAddTxn: () -> Unit,
+    onOpenAccount: (Account) -> Unit,
+    onAddSub: () -> Unit,
+    onUpdateAccount: (Account) -> Unit,
     onDelete: (Txn) -> Unit
 ) {
     val acc = accounts.firstOrNull { it.id == accountId }
     val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
+    val roll = remember(accounts, bal) { rollupBalances(accounts, bal) }
     val byId = remember(accounts) { accounts.associateBy { it.id } }
+    val ids = remember(accounts, accountId) { subtreeIds(accounts, accountId) }
+    val kids = accounts.filter { it.parentId == accountId }
     val periodic = type == AccountType.INCOME || type == AccountType.EXPENSE
     val start = month.atDay(1).toEpochDay()
     val end = month.atEndOfMonth().toEpochDay()
     val list = txns.filter { t ->
-        (t.fromId == accountId || t.toId == accountId) && (!periodic || t.date in start..end)
+        (t.fromId in ids || t.toId in ids) && (!periodic || t.date in start..end)
     }
-    val v = bal[accountId] ?: 0L
+    val v = roll[accountId] ?: 0L
+    val crumb = if (acc != null) "${type.label} › ${trail(acc, byId)}" else "${type.label} › $group"
+    val isCard = acc != null && acc.type == AccountType.LIABILITY && acc.groupName == G_CARD && acc.parentId == null
+    val info = remember(accounts, txns, acc) { if (isCard && acc != null) cardInfo(acc, accounts, txns) else null }
+    var cardDialog by remember { mutableStateOf(false) }
+    val dateFmt = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TopBar("${acc?.name ?: "Hesap"} (${money(v)})", onBack, onHome)
-            Breadcrumb("${type.label} > $group")
+            Breadcrumb(crumb)
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                PeriodPill(month, onMonth)
-                WhiteBox {
-                    Text(
-                        "Bakiye: ${money(v)}",
-                        Modifier.fillMaxWidth().padding(14.dp),
-                        color = if (v < 0) NegativeRed else GreenText,
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                if (!isCard) PeriodPill(month, onMonth)
+                if (info != null) {
+                    CardSummary(info) { cardDialog = true }
+                } else {
+                    WhiteBox {
+                        Text(
+                            "Bakiye: ${money(v)}",
+                            Modifier.fillMaxWidth().padding(14.dp),
+                            color = if (v < 0) NegativeRed else GreenText,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
                 }
                 Button(
                     onClick = onAddTxn,
@@ -817,66 +1000,47 @@ fun AccountDetailScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Yeni işlem gir")
                 }
-                TxnTable("İşlemler", list, byId, setOf(accountId)) { onDelete(it) }
-            }
-        }
-    }
-}
-
-@Composable
-fun ChartScreen(
-    type: AccountType,
-    group: String?,
-    accounts: List<Account>,
-    txns: List<Txn>,
-    month: YearMonth,
-    startPie: Boolean,
-    onMonth: (YearMonth) -> Unit,
-    onBack: () -> Unit,
-    onHome: () -> Unit
-) {
-    var pie by remember { mutableStateOf(startPie) }
-    val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
-    val slices = remember(accounts, bal, type, group) {
-        val raw = if (group == null) {
-            groupTotals(accounts, type, bal)
-        } else {
-            accounts.filter { it.type == type && it.groupName == group }.map { it.name to (bal[it.id] ?: 0L) }
-        }
-        raw.map { it.first to abs(it.second) }.filter { it.second > 0L }
-    }
-    AppBackground {
-        Column(Modifier.fillMaxSize()) {
-            TopBar("${group ?: type.label} grafiği", onBack, onHome)
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                PeriodPill(month, onMonth)
-                Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = pie, onClick = { pie = true }, label = { Text("Pasta") })
-                    FilterChip(selected = !pie, onClick = { pie = false }, label = { Text("Çubuk") })
+                WhiteBox {
+                    SectionHeader("Alt kalemler")
+                    if (kids.isEmpty()) {
+                        Text("Henüz alt kalem yok.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
+                    }
+                    kids.forEach { k ->
+                        val kv = roll[k.id] ?: 0L
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onOpenAccount(k) }.padding(horizontal = 14.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(k.name, Modifier.weight(1f), color = GreenText, fontWeight = FontWeight.Bold)
+                            Text(money(kv), color = if (kv < 0) NegativeRed else Color.DarkGray)
+                            Text("›", Modifier.padding(start = 8.dp), color = Color.Gray, fontSize = 20.sp)
+                        }
+                        HorizontalDivider()
+                    }
+                    Box(Modifier.padding(10.dp)) {
+                        AddPanel("Alt kalem ekle", typeColor(type), onAddSub)
+                    }
                 }
-                if (slices.isEmpty()) {
-                    WhiteBox { Text("Bu dönemde gösterilecek veri yok.", Modifier.padding(16.dp)) }
+                val lastC = info?.lastCutoff
+                val prevC = info?.prevCutoff
+                if (info != null && lastC != null && prevC != null) {
+                    val l = lastC.toEpochDay()
+                    val p = prevC.toEpochDay()
+                    TxnTable("Güncel dönem (ekstreye dahil değil)", list.filter { it.date > l }, byId, ids) { onDelete(it) }
+                    TxnTable("Son ekstre · kesim ${lastC.format(dateFmt)}", list.filter { it.date > p && it.date <= l }, byId, ids) { onDelete(it) }
+                    val older = list.filter { it.date <= p }
+                    if (older.isNotEmpty()) TxnTable("Önceki hareketler", older, byId, ids) { onDelete(it) }
                 } else {
-                    WhiteBox {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            if (pie) PieChart(slices) else BarChart(slices)
-                        }
-                    }
-                    WhiteBox {
-                        slices.forEachIndexed { i, sl ->
-                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(14.dp).background(PALETTE[i % PALETTE.size]))
-                                Spacer(Modifier.width(8.dp))
-                                Text(sl.first, Modifier.weight(1f))
-                                Text(money(sl.second))
-                            }
-                        }
-                    }
+                    TxnTable("İşlemler", list, byId, ids) { onDelete(it) }
                 }
             }
+        }
+    }
+
+    if (cardDialog && acc != null) {
+        CardSettingsDialog(acc, onDismiss = { cardDialog = false }) {
+            onUpdateAccount(it)
+            cardDialog = false
         }
     }
 }
@@ -912,8 +1076,8 @@ const val G_BANK = "Banka hesapları"
 const val G_CARD = "Kredi kartları"
 const val G_LOAN = "Krediler"
 const val G_PRIV = "Özel borçlar"
-const val G_BILLS = "Faturalar"
-const val G_OTHER_EXP = "Diğer giderler"
+const val G_BILLS = "Fatura Giderleri"
+const val G_OTHER_EXP = "Diğer"
 
 val PRESETS = listOf(
     Preset("Kart harcaması", TxMode.EXPENSE_DEBT, G_CARD, null),
@@ -1004,7 +1168,7 @@ fun SelectorRow(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun NewAccountButton(onClick: () -> Unit) {
+fun NewAccountButton(label: String = "Yeni Hesap", onClick: () -> Unit) {
     val shape = RoundedCornerShape(10.dp)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(
@@ -1017,45 +1181,107 @@ fun NewAccountButton(onClick: () -> Unit) {
         ) {
             Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
             Spacer(Modifier.width(6.dp))
-            Text("Yeni Hesap", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+    }
+}
+
+sealed interface PickNode {
+    data class G(val name: String) : PickNode
+    data class A(val id: Long) : PickNode
+}
+
+@Composable
+fun PickRow(title: String, amount: Long, hasChildren: Boolean, onAdd: (() -> Unit)?, onClick: () -> Unit) {
+    WhiteBox {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, Modifier.weight(1f).padding(vertical = 8.dp), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(money(amount), color = if (amount < 0) NegativeRed else Color.DarkGray, fontSize = 13.sp)
+            if (onAdd != null) {
+                IconButton(onClick = onAdd, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Add, contentDescription = "Alt kalem ekle", tint = GreenText, modifier = Modifier.size(20.dp))
+                }
+            }
+            if (hasChildren) Text("›", Modifier.padding(end = 8.dp), color = Color.Gray, fontSize = 20.sp)
         }
     }
 }
 
 @Composable
-fun AccountPickerPane(
+fun HierarchyPickerPane(
     title: String,
-    options: List<Account>,
+    type: AccountType,
+    accounts: List<Account>,
     bal: Map<Long, Long>,
+    presetGroup: String?,
     onPick: (Account) -> Unit,
-    onNew: () -> Unit,
+    onNew: (String, Account?) -> Unit,
     onBack: () -> Unit,
     onHome: () -> Unit
 ) {
+    var path by remember { mutableStateOf<List<PickNode>>(emptyList()) }
+    val roll = remember(accounts, bal) { rollupBalances(accounts, bal) }
+    val ofType = accounts.filter { it.type == type }
+    BackHandler(enabled = path.isNotEmpty()) { path = path.dropLast(1) }
+    val node = path.lastOrNull()
+    val heading = when (node) {
+        null -> title
+        is PickNode.G -> node.name
+        is PickNode.A -> accounts.firstOrNull { it.id == node.id }?.name ?: title
+    }
+
     AppBackground {
         Column(Modifier.fillMaxSize()) {
-            TopBar(title, onBack, onHome)
+            TopBar(heading, { if (path.isEmpty()) onBack() else path = path.dropLast(1) }, onHome)
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (options.isEmpty()) NewAccountButton(onNew)
-                options.forEach { a ->
-                    val v = bal[a.id] ?: 0L
-                    WhiteBox {
-                        Row(
-                            Modifier.fillMaxWidth().clickable { onPick(a) }.padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(a.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Text(a.groupName, fontSize = 10.sp, color = Color.Gray)
+                when (node) {
+                    null -> {
+                        val groups = ofType.map { it.groupName }.distinct().sortedBy { if (it == presetGroup) 0 else 1 }
+                        if (groups.isEmpty()) NewAccountButton { onNew("", null) }
+                        groups.forEach { g ->
+                            val sum = ofType.filter { it.groupName == g }.sumOf { bal[it.id] ?: 0L }
+                            PickRow(g, sum, true, null) { path = listOf(PickNode.G(g)) }
+                        }
+                    }
+                    is PickNode.G -> {
+                        val list = ofType.filter { it.groupName == node.name && it.parentId == null }
+                        if (list.isEmpty()) NewAccountButton { onNew(node.name, null) }
+                        list.forEach { a ->
+                            val hasKids = ofType.any { it.parentId == a.id }
+                            PickRow(a.name, roll[a.id] ?: 0L, hasKids, { onNew(a.groupName, a) }) {
+                                if (hasKids) path = path + PickNode.A(a.id) else onPick(a)
                             }
-                            Text(money(v), color = if (v < 0) NegativeRed else Color.DarkGray, fontSize = 13.sp)
+                        }
+                        if (list.isNotEmpty()) NewAccountButton { onNew(node.name, null) }
+                    }
+                    is PickNode.A -> {
+                        val parent = accounts.firstOrNull { it.id == node.id }
+                        if (parent != null) {
+                            WhiteBox {
+                                Row(
+                                    Modifier.fillMaxWidth().clickable { onPick(parent) }.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Bu kalemi seç: ${parent.name}", Modifier.weight(1f), color = GreenText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("✓", color = GreenText, fontSize = 18.sp)
+                                }
+                            }
+                            ofType.filter { it.parentId == parent.id }.forEach { k ->
+                                val hasKids = ofType.any { it.parentId == k.id }
+                                PickRow(k.name, roll[k.id] ?: 0L, hasKids, { onNew(k.groupName, k) }) {
+                                    if (hasKids) path = path + PickNode.A(k.id) else onPick(k)
+                                }
+                            }
+                            NewAccountButton("Alt Kalem Ekle") { onNew(parent.groupName, parent) }
                         }
                     }
                 }
-                if (options.isNotEmpty()) NewAccountButton(onNew)
             }
         }
     }
@@ -1071,7 +1297,7 @@ fun AddTxnScreen(
     accountId: Long?,
     onBack: () -> Unit,
     onHome: () -> Unit,
-    onNewAccount: (String, String, AccountType, (Account) -> Unit) -> Unit,
+    onNewAccount: (String, String, AccountType, Long?, Long?, Int?, (Account) -> Unit) -> Unit,
     onSave: (List<Txn>, Favorite?) -> Unit
 ) {
     val favFrom = fav?.let { f -> accounts.firstOrNull { it.id == f.fromId } }
@@ -1112,6 +1338,8 @@ fun AddTxnScreen(
     var to by remember { mutableStateOf(favTo ?: (if (accIsFrom == false) acc else null) ?: toOpts.singleOrNull()) }
     var picking by remember { mutableStateOf<Int?>(null) }
     var creating by remember { mutableStateOf<Int?>(null) }
+    var creatingGroup by remember { mutableStateOf("") }
+    var creatingParent by remember { mutableStateOf<Account?>(null) }
     val plan = if (taksit) Plan.INSTALLMENT else if (tekrar) Plan.REPEAT else Plan.SINGLE
 
     BackHandler(enabled = picking != null || creating != null) {
@@ -1127,11 +1355,11 @@ fun AddTxnScreen(
         creatingSide != null -> {
             val t = sideType(creatingSide)
             AddAccountScreen(
-                t, sideGroup(creatingSide) ?: "", accounts,
+                t, creatingGroup, creatingParent, accounts,
                 onBack = { creating = null },
                 onHome = onHome,
-                onSave = { name, group ->
-                    onNewAccount(name, group, t) { a ->
+                onSave = { name, group, limit, cutoff ->
+                    onNewAccount(name, group, t, creatingParent?.id, limit, cutoff) { a ->
                         if (creatingSide == 0) from = a else to = a
                         creating = null
                         picking = null
@@ -1141,15 +1369,17 @@ fun AddTxnScreen(
         }
         pickingSide != null -> {
             val t = sideType(pickingSide)
-            val g = sideGroup(pickingSide)
-            val opts = accounts.filter { it.type == t }.sortedBy { if (it.groupName == g) 0 else 1 }
-            AccountPickerPane(
-                "${t.label} hesabı seçiniz:", opts, bal,
+            HierarchyPickerPane(
+                "${t.label} hesabı seçiniz:", t, accounts, bal, sideGroup(pickingSide),
                 onPick = { a ->
                     if (pickingSide == 0) from = a else to = a
                     picking = null
                 },
-                onNew = { creating = pickingSide },
+                onNew = { group, parent ->
+                    creatingGroup = group
+                    creatingParent = parent
+                    creating = pickingSide
+                },
                 onBack = { picking = null },
                 onHome = onHome
             )
@@ -1293,31 +1523,45 @@ fun AddTxnScreen(
 fun AddAccountScreen(
     type: AccountType,
     initialGroup: String,
+    parent: Account?,
     accounts: List<Account>,
     onBack: () -> Unit,
     onHome: () -> Unit,
-    onSave: (name: String, group: String) -> Unit
+    onSave: (name: String, group: String, limitCents: Long?, cutoffDay: Int?) -> Unit
 ) {
+    val byId = remember(accounts) { accounts.associateBy { it.id } }
     val groups = remember(accounts, type) { accounts.filter { it.type == type }.map { it.groupName }.distinct() }
+    val fixedGroup = parent?.groupName ?: initialGroup
     var name by remember { mutableStateOf("") }
     var chosen by remember {
-        mutableStateOf(if (initialGroup.isNotEmpty()) initialGroup else (groups.firstOrNull() ?: "Genel"))
+        mutableStateOf(if (fixedGroup.isNotEmpty()) fixedGroup else (groups.firstOrNull() ?: "Genel"))
     }
     var open by remember { mutableStateOf(false) }
+    var limitText by remember { mutableStateOf("") }
+    var dayText by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    val isCard = type == AccountType.LIABILITY && chosen == G_CARD && parent == null
 
     AppBackground {
         Column(Modifier.fillMaxSize()) {
-            TopBar("Yeni hesap", onBack, onHome)
-            if (initialGroup.isNotEmpty()) Breadcrumb("${type.label} > $initialGroup")
+            TopBar(if (parent != null) "Yeni alt kalem" else "Yeni hesap", onBack, onHome)
+            if (parent != null) {
+                Breadcrumb("${type.label} › ${trail(parent, byId)} › ${parent.name}")
+            } else if (fixedGroup.isNotEmpty()) {
+                Breadcrumb("${type.label} › $fixedGroup")
+            }
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 WhiteBox {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        CompactField(name, { name = it; error = null }, "Hesap adı", flat = true)
-                        if (initialGroup.isEmpty()) {
+                        CompactField(
+                            name, { name = it; error = null },
+                            if (parent != null) "Alt kalem adı" else "Hesap adı",
+                            flat = true
+                        )
+                        if (fixedGroup.isEmpty()) {
                             Text("${type.label} kategorisi seçiniz:")
                             Box {
                                 SelectorRow(chosen) { open = true }
@@ -1328,24 +1572,119 @@ fun AddAccountScreen(
                                 }
                             }
                         }
+                        if (isCard) {
+                            CompactField(limitText, { limitText = it; error = null }, "Kart limiti (TL, isteğe bağlı)", KeyboardType.Decimal, flat = true)
+                            CompactField(dayText, { dayText = it; error = null }, "Hesap kesim günü (1-31, isteğe bağlı)", KeyboardType.Number, flat = true)
+                        }
                         error?.let { Text(it, color = NegativeRed) }
                         Button(
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = typeColor(type)),
                             onClick = {
                                 val n = name.trim()
+                                val limit = if (isCard && limitText.isNotBlank()) parseCents(limitText) else null
+                                val day = if (isCard && dayText.isNotBlank()) dayText.trim().toIntOrNull() else null
                                 when {
-                                    n.isEmpty() -> error = "Hesap adı girin."
+                                    n.isEmpty() -> error = "Ad girin."
                                     accounts.any {
-                                        it.type == type && it.groupName == chosen && it.name.equals(n, ignoreCase = true)
-                                    } -> error = "Bu kategoride aynı adlı hesap var."
-                                    else -> onSave(n, chosen)
+                                        it.type == type && it.groupName == chosen && it.parentId == parent?.id &&
+                                            it.name.equals(n, ignoreCase = true)
+                                    } -> error = "Burada aynı adlı bir kalem var."
+                                    isCard && limitText.isNotBlank() && (limit == null || limit < 0) -> error = "Geçerli bir limit girin."
+                                    isCard && dayText.isNotBlank() && (day == null || day < 1 || day > 31) -> error = "Gün 1 ile 31 arasında olmalı."
+                                    else -> onSave(n, chosen, limit, day)
                                 }
                             }
                         ) { Text("Kaydet") }
                     }
                 }
             }
+        }
+    }
+}
+
+data class Budget(val income: Long, val spent: Long, val paid: Long, val credit: Long)
+
+@Composable
+fun BudgetRow(label: String, cents: Long, color: Color, sign: String, bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp)) {
+        Text(label, Modifier.weight(1f), fontSize = 13.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
+        Text(sign + money(cents), color = color, fontSize = 13.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium)
+    }
+}
+
+@Composable
+fun MonthlyBudgetCard(accounts: List<Account>, txns: List<Txn>, month: YearMonth) {
+    val b = remember(accounts, txns, month) {
+        val byId = accounts.associateBy { it.id }
+        val start = month.atDay(1).toEpochDay()
+        val end = month.atEndOfMonth().toEpochDay()
+        var income = 0L
+        var spent = 0L
+        var paid = 0L
+        var credit = 0L
+        for (t in txns) {
+            if (t.date < start || t.date > end) continue
+            val f = byId[t.fromId]?.type
+            val to = byId[t.toId]?.type
+            if (f == AccountType.INCOME) income += t.cents
+            else if (to == AccountType.EXPENSE && f == AccountType.ASSET) spent += t.cents
+            else if (to == AccountType.EXPENSE && f == AccountType.LIABILITY) credit += t.cents
+            else if (f == AccountType.ASSET && to == AccountType.LIABILITY) paid += t.cents
+        }
+        Budget(income, spent, paid, credit)
+    }
+    val out = b.spent + b.paid
+    val left = b.income - out
+    val ratio = if (b.income > 0) (out.toFloat() / b.income).coerceIn(0f, 1f) else if (out > 0) 1f else 0f
+    val green = Color(0xFF1E8A5E)
+    val red = Color(0xFFB3261E)
+    val monthTitle = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", TR))
+
+    WhiteBox {
+        SectionHeader("Aylık bütçe · $monthTitle")
+        Spacer(Modifier.height(6.dp))
+        BudgetRow("Gelen (gelirler)", b.income, green, "+")
+        BudgetRow("Harcamalar", b.spent, red, "−")
+        BudgetRow("Ödemeler (kart, kredi, borç)", b.paid, red, "−")
+        HorizontalDivider(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), color = Color(0xFFDDDDDD))
+        BudgetRow("Toplam giden", out, red, "−", bold = true)
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            LinearProgressIndicator(
+                progress = { ratio },
+                modifier = Modifier.fillMaxWidth().height(8.dp),
+                color = if (ratio >= 1f) red else green,
+                trackColor = Color(0xFFE0E0E0)
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (b.income > 0) "Gelirin %${(ratio * 100).toInt()} kısmı kullanıldı" else if (out > 0) "Bu ay gelir girilmedi" else "Bu ay henüz hareket yok",
+                fontSize = 11.sp,
+                color = Color.Gray
+            )
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(if (left >= 0) Color(0xFFE6F4EC) else Color(0xFFF9E6E4))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Ay sonu durumu (gelen − giden)", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(
+                (if (left > 0) "+" else "") + money(left),
+                color = if (left >= 0) green else red,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        }
+        if (b.credit > 0) {
+            Text(
+                "Kartla/borçla yapılan harcama: ${money(b.credit)}. Ödendiğinde “Ödemeler”e yansır.",
+                Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                fontSize = 11.sp,
+                color = Color.Gray
+            )
         }
     }
 }
@@ -1362,16 +1701,49 @@ fun StatBox(label: String, value: String, color: Color, tint: Color, modifier: M
 }
 
 @Composable
+fun DaySection(
+    title: String,
+    color: Color,
+    tint: Color,
+    list: List<Txn>,
+    sign: Int,
+    showTotal: Boolean,
+    head: (Txn) -> String,
+    sub: (Txn) -> String
+) {
+    if (list.isEmpty()) return
+    Row(
+        Modifier.fillMaxWidth().background(tint).padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("$title (${list.size})", Modifier.weight(1f), color = color, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        if (showTotal) Text("Toplam: ${money(list.sumOf { it.cents })}", color = color, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)) {
+        Text("Kalem", Modifier.weight(1f), fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+        Text("Tutar", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+    }
+    list.forEachIndexed { i, t ->
+        TxnLine(head(t), sub(t), t.cents, sign, i % 2 == 1, null)
+        HorizontalDivider(color = Color(0xFFE3E3E3))
+    }
+}
+
+@Composable
 fun DailyCard(accounts: List<Account>, txns: List<Txn>) {
     var day by remember { mutableStateOf(LocalDate.now()) }
     val byId = remember(accounts) { accounts.associateBy { it.id } }
     val dayTxns = remember(txns, day) { txns.filter { it.date == day.toEpochDay() } }
-    val income = dayTxns.filter { byId[it.fromId]?.type == AccountType.INCOME }.sumOf { it.cents }
-    val expense = dayTxns.filter { byId[it.toId]?.type == AccountType.EXPENSE }.sumOf { it.cents }
-    val net = income - expense
+    val incomeL = dayTxns.filter { byId[it.fromId]?.type == AccountType.INCOME }
+    val spentL = dayTxns.filter { byId[it.toId]?.type == AccountType.EXPENSE }
+    val paidL = dayTxns.filter { byId[it.fromId]?.type == AccountType.ASSET && byId[it.toId]?.type == AccountType.LIABILITY }
+    val otherL = dayTxns.filter { it !in incomeL && it !in spentL && it !in paidL }
     val title = if (day == LocalDate.now()) "Bugün" else day.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", TR))
     val green = Color(0xFF1E8A5E)
     val red = Color(0xFFB3261E)
+    val blue = Color(0xFF3F6E80)
+    fun note(t: Txn) = if (t.note.isNotBlank()) " · ${t.note}" else ""
+    fun nm(id: Long) = byId[id]?.name ?: "?"
 
     WhiteBox {
         Row(
@@ -1396,40 +1768,33 @@ fun DailyCard(accounts: List<Account>, txns: List<Txn>) {
             )
         }
         Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatBox("Gelir", money(income), green, Color(0xFFE6F4EC), Modifier.weight(1f))
-            StatBox("Gider", money(expense), red, Color(0xFFF9E6E4), Modifier.weight(1f))
-            StatBox(
-                "Net",
-                (if (net > 0) "+" else "") + money(net),
-                if (net >= 0) green else red,
-                Color(0xFFEFEFEF),
-                Modifier.weight(1f)
-            )
-        }
-        Row(Modifier.fillMaxWidth().background(Color(0xFFF2F2F2)).padding(horizontal = 12.dp, vertical = 5.dp)) {
-            Text("İşlem", Modifier.weight(1f), fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-            Text("Tutar", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            StatBox("Gelir", money(incomeL.sumOf { it.cents }), green, Color(0xFFE6F4EC), Modifier.weight(1f))
+            StatBox("Harcama", money(spentL.sumOf { it.cents }), red, Color(0xFFF9E6E4), Modifier.weight(1f))
+            StatBox("Ödeme", money(paidL.sumOf { it.cents }), blue, Color(0xFFE5EEF2), Modifier.weight(1f))
         }
         if (dayTxns.isEmpty()) {
             Text("Bu günde işlem yok.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
         }
-        dayTxns.forEachIndexed { i, t ->
-            val from = byId[t.fromId]
-            val to = byId[t.toId]
-            val sign = if (from?.type == AccountType.INCOME) 1 else if (to?.type == AccountType.EXPENSE) -1 else 0
-            val head = when (sign) {
-                1 -> from?.name ?: "Gelir"
-                -1 -> to?.name ?: "Gider"
-                else -> "${from?.name ?: "?"} → ${to?.name ?: "?"}"
-            }
-            val sub = when (sign) {
-                1 -> "→ ${to?.name ?: "?"}"
-                -1 -> "← ${from?.name ?: "?"}"
-                else -> "Hesaplar arası"
-            } + if (t.note.isNotBlank()) " · ${t.note}" else ""
-            TxnLine(head, sub, t.cents, sign, i % 2 == 1, null)
-            HorizontalDivider(color = Color(0xFFE3E3E3))
-        }
+        DaySection(
+            "Gelirler", green, Color(0xFFE6F4EC), incomeL, 1, true,
+            head = { t -> nm(t.fromId) },
+            sub = { t -> (byId[t.fromId]?.let { trail(it, byId) } ?: "") + " → " + nm(t.toId) + note(t) }
+        )
+        DaySection(
+            "Harcamalar", red, Color(0xFFF9E6E4), spentL, -1, true,
+            head = { t -> nm(t.toId) },
+            sub = { t -> (byId[t.toId]?.let { trail(it, byId) } ?: "") + " · " + nm(t.fromId) + note(t) }
+        )
+        DaySection(
+            "Ödemeler", blue, Color(0xFFE5EEF2), paidL, -1, true,
+            head = { t -> nm(t.toId) },
+            sub = { t -> nm(t.fromId) + " hesabından" + note(t) }
+        )
+        DaySection(
+            "Diğer hareketler", Color(0xFF666666), Color(0xFFEFEFEF), otherL, 0, false,
+            head = { t -> nm(t.fromId) + " → " + nm(t.toId) },
+            sub = { t -> (if (byId[t.fromId]?.type == AccountType.LIABILITY) "Borçlanma" else "Hesaplar arası") + note(t) }
+        )
         Spacer(Modifier.height(4.dp))
     }
 }

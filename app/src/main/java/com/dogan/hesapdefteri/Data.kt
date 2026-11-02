@@ -11,6 +11,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 enum class AccountType(val label: String) {
@@ -25,7 +27,10 @@ data class Account(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val type: AccountType,
-    val groupName: String
+    val groupName: String,
+    val parentId: Long? = null,
+    val limitCents: Long? = null,
+    val cutoffDay: Int? = null
 )
 
 /** Çift taraflı kayıt: tutar fromId hesabından toId hesabına akar. Tutar kuruş cinsindendir. */
@@ -94,12 +99,29 @@ interface AppDao {
     suspend fun deleteFavorite(f: Favorite)
 }
 
-@Database(entities = [Account::class, Txn::class, Favorite::class], version = 1, exportSchema = false)
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN parentId INTEGER")
+        db.execSQL("UPDATE accounts SET groupName = 'Fatura Giderleri' WHERE groupName = 'Faturalar' AND type = 'EXPENSE'")
+        db.execSQL("UPDATE accounts SET groupName = 'Diğer' WHERE groupName = 'Diğer giderler' AND type = 'EXPENSE'")
+    }
+}
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN limitCents INTEGER")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN cutoffDay INTEGER")
+    }
+}
+
+@Database(entities = [Account::class, Txn::class, Favorite::class], version = 3, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun dao(): AppDao
 
     companion object {
         fun build(ctx: Context): AppDb =
-            Room.databaseBuilder(ctx.applicationContext, AppDb::class.java, "hesap.db").build()
+            Room.databaseBuilder(ctx.applicationContext, AppDb::class.java, "hesap.db")
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .build()
     }
 }

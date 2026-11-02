@@ -10,7 +10,11 @@ Bir karta dokunursan alt kategorileri görürsün. Bir alt kategoriye dokunursan
 
 Taksit seçersen toplam tutar belirlediğin sayıda eşit parçaya bölünür ve her parça sonraki haftalara, aylara ya da yıllara tarihlenir. Tekrar seçersen aynı tutar belirlediğin sayıda yinelenir.
 
-Sık yaptığın bir işlemi kaydetmek için işlem girerken “Sık kullanılanlara ekle” kutusunu işaretle ve bir ad ver. Hazır kısayollar da Sık kullanılanlar ekranında seni bekler."""
+Sık yaptığın bir işlemi kaydetmek için işlem girerken “Sık kullanılanlara ekle” kutusunu işaretle ve bir ad ver. Hazır kısayollar da Sık kullanılanlar ekranında seni bekler.
+
+Kredi kartlarında limit ve hesap kesim gününü kartın ekranından girebilirsin. Kesim gününde o güne kadarki borç ekstre borcu olur. Kesimden sonraki harcamalar güncel borca eklenir ama ekstreye dahil edilmez, kalan limit her harcamada güncellenir.
+
+Grafik ekranında Özet, Gider ve Gelir sekmeleri ile günlük, haftalık, aylık, yıllık ve tüm zamanlar aralıklarını kullanabilirsin."""
 
 const val TIPS = """• Önce Varlık hesaplarının güncel bakiyesini bir kez giriş işlemiyle kaydet, sonra günlük işlemlere geç.
 • Kredi kartıyla yaptığın harcamada “Borçla öde” seçeneğini kullan. Kart borcun kendiliğinden artar.
@@ -33,4 +37,9 @@ Bu sürümde:
 • Taksitli ve tekrarlayan işlemler
 • Hazır ve kişisel sık kullanılanlar
 • Günlük işlemler özeti
-• Uygulama kilidi (PIN)"""
+• Uygulama kilidi (PIN)
+• Alt kalemler: her kategori ve kalemin altına yeni kalem eklenebilir
+• Aylık bütçe paneli ve ayrıntılı günlük işlem tabloları
+• Kredi kartı limiti, hesap kesim günü ve ekstre borcu
+• Özet, gider ve gelir grafikleri: halka grafik, tablo ve dönem seçici
+• Uygulama içinden güncelleme"""
