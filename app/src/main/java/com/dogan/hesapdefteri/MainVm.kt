@@ -53,15 +53,26 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             addAll(add(e, "Kira", "Ev kirası"))
             addAll(add(e, "Ulaşım", "Yakıt ve ulaşım"))
             addAll(add(e, "Sağlık", "Sağlık"))
-            addAll(add(e, "Faturalar", "Elektrik, su, doğalgaz"))
-            addAll(add(e, "Diğer giderler", "Diğer gider"))
+            addAll(add(e, "Fatura Giderleri", "Elektrik, su, doğalgaz"))
+            addAll(add(e, "Diğer", "Diğer gider"))
         }
         all.forEach { dao.insertAccount(it) }
     }
 
-    fun addAccount(name: String, group: String, type: AccountType, onDone: (Account) -> Unit = {}) {
+    fun addAccount(
+        name: String,
+        group: String,
+        type: AccountType,
+        parentId: Long? = null,
+        limitCents: Long? = null,
+        cutoffDay: Int? = null,
+        onDone: (Account) -> Unit = {}
+    ) {
         viewModelScope.launch {
-            val a = Account(name = name, type = type, groupName = group)
+            val a = Account(
+                name = name, type = type, groupName = group, parentId = parentId,
+                limitCents = limitCents, cutoffDay = cutoffDay
+            )
             val id = dao.insertAccount(a)
             onDone(a.copy(id = id))
         }
