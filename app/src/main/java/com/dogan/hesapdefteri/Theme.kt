@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -52,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -428,7 +430,6 @@ fun TypeCard(
                         end = Offset(0f, size.height)
                     )
                 )
-                // iç kabartma
                 val inset = 5.dp.toPx()
                 val inner = Path()
                 inner.moveTo(size.width - inset, inset * 1.6f)
@@ -444,7 +445,6 @@ fun TypeCard(
                     )
                 )
                 drawPath(tri, Color(0xFF8C8C8C), style = Stroke(width = 2f))
-                // belirgin + işareti (kabartmalı)
                 val c = Offset(size.width * 0.68f, size.height * 0.68f)
                 val r = 6.dp.toPx()
                 val sw = 3.6.dp.toPx()
