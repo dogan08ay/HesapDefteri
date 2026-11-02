@@ -5,19 +5,37 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val appVersionCode = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+val appVersionName = (findProperty("versionName") as String?) ?: "0.3.0"
+val ksPath: String? = System.getenv("KEYSTORE_PATH")
+
 android {
     namespace = "com.dogan.hesapdefteri"
     compileSdk = 34
+
+    signingConfigs {
+        if (ksPath != null && File(ksPath).exists()) {
+            create("fixed") {
+                storeFile = File(ksPath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.dogan.hesapdefteri"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("fixed") ?: signingConfigs.getByName("debug")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
