@@ -14,6 +14,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Typography
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -51,6 +66,16 @@ val Dark = Color(0xFF1F1F1F)
 val GreenText = Color(0xFF2E5E1A)
 val NegativeRed = Color(0xFFD9534F)
 
+val AppTypography = Typography(
+    titleLarge = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+    titleSmall = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium),
+    bodyLarge = TextStyle(fontSize = 13.sp),
+    bodyMedium = TextStyle(fontSize = 12.sp),
+    bodySmall = TextStyle(fontSize = 11.sp),
+    labelLarge = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium)
+)
+
 val PALETTE = listOf(
     Color(0xFF4E8F6B), Color(0xFFB85C5C), Color(0xFF6BA6C9), Color(0xFFD9A441),
     Color(0xFF8A6BB5), Color(0xFF7A7A7A), Color(0xFF5C8DB8), Color(0xFFC77D3A)
@@ -78,31 +103,75 @@ fun AppBackground(content: @Composable () -> Unit) {
 }
 
 @Composable
+fun LogoMark(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val k = size.width / 108f
+        drawRoundRect(
+            brush = Brush.linearGradient(listOf(Color(0xFF2E8B57), Color(0xFF14452B))),
+            cornerRadius = CornerRadius(24f * k, 24f * k)
+        )
+        fun poly(vararg p: Float): Path {
+            val path = Path()
+            path.moveTo(p[0] * k, p[1] * k)
+            var i = 2
+            while (i < p.size) {
+                path.lineTo(p[i] * k, p[i + 1] * k)
+                i += 2
+            }
+            path.close()
+            return path
+        }
+        drawPath(poly(52.5f, 37f, 30f, 41f, 30f, 74f, 52.5f, 70.5f), Color(0xFFF4EBD6))
+        drawPath(poly(55.5f, 37f, 78f, 41f, 78f, 74f, 55.5f, 70.5f), Color(0xFFF4EBD6))
+        val line = Path()
+        line.moveTo(36f * k, 64f * k)
+        line.lineTo(47f * k, 53f * k)
+        line.lineTo(55f * k, 60f * k)
+        line.lineTo(71f * k, 44f * k)
+        drawPath(line, Color(0xFFE09A12), style = Stroke(width = 4f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(poly(78f, 37f, 67f, 39f, 76f, 48f), Color(0xFFE09A12))
+    }
+}
+
+@Composable
 fun TopBar(
     title: String,
     onBack: (() -> Unit)?,
     onHome: (() -> Unit)?,
     onMenu: (() -> Unit)? = null,
-    onEdit: (() -> Unit)? = null
+    onEdit: (() -> Unit)? = null,
+    logo: Boolean = false
 ) {
     Box(
         Modifier
             .fillMaxWidth()
             .background(Dark)
-            .padding(horizontal = 8.dp, vertical = 14.dp)
+            .padding(horizontal = 4.dp, vertical = 6.dp)
+            .heightIn(min = 48.dp)
     ) {
         if (onBack != null) {
             IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri", tint = Color.White)
             }
         }
-        Text(
-            title,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp,
-            modifier = Modifier.align(Alignment.Center)
-        )
+        if (logo) {
+            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                LogoMark(Modifier.size(30.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        } else {
+            Text(
+                title,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 96.dp)
+            )
+        }
         if (onHome != null || onEdit != null) {
             Row(Modifier.align(Alignment.CenterEnd)) {
                 if (onHome != null) {
@@ -144,25 +213,86 @@ fun PeriodPill(month: YearMonth, onMonth: (YearMonth) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(28.dp))
-            .background(Color.White, RoundedCornerShape(28.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .shadow(3.dp, RoundedCornerShape(24.dp))
+            .background(Color.White, RoundedCornerShape(24.dp))
+            .padding(horizontal = 12.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("📅", fontSize = 26.sp)
-        TextButton(onClick = { onMonth(month.minusMonths(1)) }) {
-            Text("‹", fontSize = 26.sp, color = GreenText)
-        }
+        Text("📅", fontSize = 20.sp)
+        Text(
+            "‹",
+            Modifier.clickable { onMonth(month.minusMonths(1)) }.padding(horizontal = 14.dp, vertical = 2.dp),
+            fontSize = 22.sp,
+            color = GreenText
+        )
         Text(
             label,
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center,
             color = GreenText,
-            style = MaterialTheme.typography.bodyLarge
+            fontSize = 12.sp
         )
-        TextButton(onClick = { onMonth(month.plusMonths(1)) }) {
-            Text("›", fontSize = 26.sp, color = GreenText)
+        Text(
+            "›",
+            Modifier.clickable { onMonth(month.plusMonths(1)) }.padding(horizontal = 14.dp, vertical = 2.dp),
+            fontSize = 22.sp,
+            color = GreenText
+        )
+    }
+}
+
+@Composable
+fun CompactField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    textAlign: TextAlign = TextAlign.Start,
+    suffix: String? = null,
+    flat: Boolean = false
+) {
+    val shape = RoundedCornerShape(10.dp)
+    val base = if (flat) Modifier.background(Color(0xFFF3F3F3), shape) else Modifier.shadow(3.dp, shape).background(Color.White, shape)
+    Row(
+        Modifier.fillMaxWidth().then(base).padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(placeholder, Modifier.fillMaxWidth(), color = Color.Gray, fontSize = 14.sp, textAlign = textAlign)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 14.sp, color = Color.Black, textAlign = textAlign),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                modifier = Modifier.fillMaxWidth()
+            )
         }
+        if (suffix != null) {
+            Spacer(Modifier.width(6.dp))
+            Text(suffix, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+fun AddPanel(text: String, color: Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, shape)
+            .background(Brush.horizontalGradient(listOf(color, color.copy(alpha = 0.72f))), shape)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
 
@@ -170,13 +300,13 @@ fun PeriodPill(month: YearMonth, onMonth: (YearMonth) -> Unit) {
 fun ChartIconButton(pie: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
-            .size(64.dp)
+            .size(52.dp)
             .shadow(3.dp, RoundedCornerShape(8.dp))
             .background(Color.White, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(36.dp)) {
+        Canvas(Modifier.size(30.dp)) {
             if (pie) {
                 drawArc(color = PALETTE[0], startAngle = -90f, sweepAngle = 200f, useCenter = true)
                 drawArc(color = PALETTE[1], startAngle = 110f, sweepAngle = 100f, useCenter = true)

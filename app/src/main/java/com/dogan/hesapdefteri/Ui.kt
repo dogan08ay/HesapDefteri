@@ -277,11 +277,11 @@ fun TypeCard(
                 Modifier
                     .fillMaxWidth()
                     .background(typeColor(type))
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(type.label, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             }
-            Box(Modifier.fillMaxWidth().height(110.dp)) {
+            Box(Modifier.fillMaxWidth().height(92.dp)) {
                 Text(
                     money(total),
                     color = if (total < 0) NegativeRed else typeColor(type),
@@ -328,11 +328,11 @@ fun SideMenu(items: List<Pair<String, () -> Unit>>, onClose: () -> Unit) {
                 Text(
                     label,
                     color = Color.White,
-                    fontSize = 18.sp,
+                    fontSize = 15.sp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onClose(); action() }
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                        .padding(horizontal = 18.dp, vertical = 13.dp)
                 )
                 HorizontalDivider(color = Color(0xFF3A3A3A))
             }
@@ -358,7 +358,7 @@ fun HomeScreen(
 
     AppBackground {
         Column(Modifier.fillMaxSize()) {
-            TopBar("Hesap Defteri", null, null, onMenu = { menuOpen = true })
+            TopBar("Hesap Defteri", null, null, onMenu = { menuOpen = true }, logo = true)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -387,16 +387,16 @@ fun ListButton(title: String, centered: Boolean, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Text(
             title,
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (centered) 22.dp else 16.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
             textAlign = if (centered) TextAlign.Center else TextAlign.Start,
             fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleMedium
+            fontSize = 13.sp
         )
     }
 }
@@ -500,7 +500,7 @@ fun CategoryScreen(
                 WhiteBox {
                     Text(
                         "${type.label} Kategorileri",
-                        Modifier.fillMaxWidth().background(Color(0xFFEFEFEF)).padding(12.dp),
+                        Modifier.fillMaxWidth().background(Color(0xFFEFEFEF)).padding(8.dp),
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
                         color = GreenText,
@@ -508,7 +508,7 @@ fun CategoryScreen(
                     )
                     groups.forEach { (g, v) ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { onOpenGroup(g) }.padding(horizontal = 16.dp, vertical = 16.dp),
+                            Modifier.fillMaxWidth().clickable { onOpenGroup(g) }.padding(horizontal = 14.dp, vertical = 11.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(g, color = GreenText, fontWeight = FontWeight.Bold)
@@ -517,9 +517,7 @@ fun CategoryScreen(
                         HorizontalDivider()
                     }
                 }
-                TextButton(onClick = onAddAccount, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    Text("Yeni hesap ekle", color = GreenText)
-                }
+                AddPanel("Yeni hesap ekle", typeColor(type), onAddAccount)
             }
         }
     }
@@ -584,7 +582,7 @@ fun GroupScreen(
             TopBar("$group (${money(total)})", onBack, onHome, onEdit = { editMode = !editMode; message = null })
             Text(
                 "${type.label} > $group",
-                Modifier.fillMaxWidth().background(Color(0xFFF1F1F1)).padding(vertical = 14.dp),
+                Modifier.fillMaxWidth().background(Color(0xFFF1F1F1)).padding(vertical = 8.dp),
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold,
                 color = GreenText,
@@ -622,11 +620,11 @@ fun GroupScreen(
                 WhiteBox {
                     Text(
                         "Hesaplar",
-                        Modifier.fillMaxWidth().background(Color(0xFFEFEFEF)).padding(12.dp),
+                        Modifier.fillMaxWidth().background(Color(0xFFEFEFEF)).padding(8.dp),
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
                         color = GreenText,
-                        style = MaterialTheme.typography.titleLarge
+                        style = MaterialTheme.typography.titleMedium
                     )
                     mine.forEach { a ->
                         val v = bal[a.id] ?: 0L
@@ -634,7 +632,7 @@ fun GroupScreen(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable(enabled = editMode) { renaming = a; renameText = a.name }
-                                .padding(horizontal = 16.dp, vertical = if (editMode) 8.dp else 16.dp),
+                                .padding(horizontal = 14.dp, vertical = if (editMode) 3.dp else 11.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(a.name, Modifier.weight(1f), color = GreenText, fontWeight = FontWeight.Bold)
@@ -652,14 +650,8 @@ fun GroupScreen(
                         }
                         HorizontalDivider()
                     }
-                    Row(
-                        Modifier.fillMaxWidth().clickable(onClick = onAddAccount).padding(vertical = 16.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = GreenText)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Yeni hesap ekle", color = GreenText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Box(Modifier.padding(10.dp)) {
+                        AddPanel("Yeni hesap ekle", typeColor(type), onAddAccount)
                     }
                 }
                 Text("İşlemler", fontWeight = FontWeight.Bold, color = GreenText, style = MaterialTheme.typography.titleMedium)
@@ -866,14 +858,14 @@ fun AccountRow(selected: Account?, options: List<Account>, onSelect: (Account) -
                 .shadow(4.dp, RoundedCornerShape(12.dp))
                 .background(Color.White, RoundedCornerShape(12.dp))
                 .clickable { open = true }
-                .padding(horizontal = 16.dp, vertical = 18.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 selected?.name ?: "Hesap seçiniz",
                 Modifier.weight(1f),
                 color = GreenText,
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleMedium
             )
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = GreenText)
         }
@@ -935,22 +927,11 @@ fun AddTxnScreen(
             TopBar("${type.label} yönetimi", onBack, onHome)
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    placeholder = { Text("0.00", Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-                    suffix = { Text("TL") },
-                    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors(),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                CompactField(amountText, { amountText = it }, "0.00", KeyboardType.Decimal, TextAlign.End, "TL")
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("📅", fontSize = 34.sp)
+                    Text("📅", fontSize = 26.sp)
                     Spacer(Modifier.width(8.dp))
                     Text(
                         date.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
@@ -959,26 +940,19 @@ fun AddTxnScreen(
                             .shadow(3.dp, RoundedCornerShape(12.dp))
                             .background(Color(0xFFE8E8E8), RoundedCornerShape(12.dp))
                             .clickable { showDate = true }
-                            .padding(horizontal = 16.dp, vertical = 18.dp),
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         color = Color.DarkGray,
-                        style = MaterialTheme.typography.titleLarge
+                        style = MaterialTheme.typography.titleMedium
                     )
                 }
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    placeholder = { Text("Açıklama giriniz") },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors(),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                CompactField(note, { note = it }, "Açıklama giriniz")
                 Text("Kaynak hesabı seçiniz:", Modifier.padding(start = 4.dp))
                 AccountRow(from, fromOpts) { from = it }
                 Text("Hedef hesabı seçiniz:", Modifier.padding(start = 4.dp))
                 AccountRow(to, toOpts) { to = it }
                 WhiteBox {
                     Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -993,13 +967,10 @@ fun AddTxnScreen(
                     }
                     if (plan != Plan.SINGLE) {
                         Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = countText,
-                                onValueChange = { countText = it },
-                                label = { Text(if (plan == Plan.INSTALLMENT) "Taksit sayısı" else "Tekrar sayısı") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                            CompactField(
+                                countText, { countText = it },
+                                if (plan == Plan.INSTALLMENT) "Taksit sayısı" else "Tekrar sayısı",
+                                KeyboardType.Number, flat = true
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Per.values().forEach { p ->
@@ -1015,13 +986,9 @@ fun AddTxnScreen(
                         Text("Sık kullanılanlara ekle", color = GreenText, style = MaterialTheme.typography.titleMedium)
                     }
                     if (saveFav) {
-                        OutlinedTextField(
-                            value = favName,
-                            onValueChange = { favName = it },
-                            label = { Text("Kısayol adı") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                        )
+                        Box(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
+                            CompactField(favName, { favName = it }, "Kısayol adı", flat = true)
+                        }
                     }
                 }
                 error?.let { Text(it, color = NegativeRed) }
@@ -1105,14 +1072,8 @@ fun AddAccountScreen(
             ) {
                 WhiteBox {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
-                            value = name, onValueChange = { name = it },
-                            label = { Text("Hesap adı") }, singleLine = true, modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = group, onValueChange = { group = it },
-                            label = { Text("Kategori") }, singleLine = true, modifier = Modifier.fillMaxWidth()
-                        )
+                        CompactField(name, { name = it }, "Hesap adı", flat = true)
+                        CompactField(group, { group = it }, "Kategori", flat = true)
                         Button(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = name.isNotBlank(),
