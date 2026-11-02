@@ -59,8 +59,12 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         all.forEach { dao.insertAccount(it) }
     }
 
-    fun addAccount(name: String, group: String, type: AccountType) {
-        viewModelScope.launch { dao.insertAccount(Account(name = name, type = type, groupName = group)) }
+    fun addAccount(name: String, group: String, type: AccountType, onDone: (Account) -> Unit = {}) {
+        viewModelScope.launch {
+            val a = Account(name = name, type = type, groupName = group)
+            val id = dao.insertAccount(a)
+            onDone(a.copy(id = id))
+        }
     }
 
     fun updateAccount(a: Account) {

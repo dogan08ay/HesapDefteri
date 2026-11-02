@@ -15,6 +15,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
@@ -98,7 +108,7 @@ fun AppBackground(content: @Composable () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Tan1, Tan2, Tan1)))
+            .background(Brush.verticalGradient(listOf(Tan1, Tan2, Tan1, Tan2, Tan1)))
     ) { content() }
 }
 
@@ -145,8 +155,18 @@ fun TopBar(
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Dark)
-            .padding(horizontal = 4.dp, vertical = 6.dp)
+            .background(Brush.verticalGradient(listOf(Color(0xFF2E2E2E), Color(0xFF131313))))
+            .drawBehind {
+                val y = size.height - 4.dp.toPx()
+                drawLine(
+                    color = Color(0xB3FFFFFF),
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 2f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 12f))
+                )
+            }
+            .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)
             .heightIn(min = 48.dp)
     ) {
         if (onBack != null) {
@@ -188,21 +208,254 @@ fun TopBar(
         }
         if (onMenu != null) {
             IconButton(onClick = onMenu, modifier = Modifier.align(Alignment.CenterEnd)) {
-                Icon(Icons.Default.Menu, contentDescription = "Menü", tint = Color.White)
+                Box(
+                    Modifier.size(34.dp).border(1.5.dp, Color(0xCCFFFFFF), RoundedCornerShape(7.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Menu, contentDescription = "Menü", tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+            }
+        }
+    }
+}
+
+val SilverBorder = Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFA2A2A2)))
+
+@Composable
+fun WhiteBox(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .shadow(4.dp, shape)
+            .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFECECEC))), shape)
+            .border(BorderStroke(1.5.dp, SilverBorder), shape)
+            .clip(shape),
+        content = content
+    )
+}
+
+@Composable
+fun TypeIcon(type: AccountType, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val k = size.width / 28f
+        val white = Color.White
+        fun coin(x: Float, y: Float) {
+            drawRoundRect(
+                color = white,
+                topLeft = Offset(x * k, y * k),
+                size = Size(7f * k, 3.2f * k),
+                cornerRadius = CornerRadius(1.2f * k, 1.2f * k)
+            )
+        }
+        fun stack(x: Float, n: Int) {
+            for (i in 1..n) coin(x, 24.8f - 4.2f * i)
+        }
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float, w: Float) {
+            drawLine(
+                color = white,
+                start = Offset(x1 * k, y1 * k),
+                end = Offset(x2 * k, y2 * k),
+                strokeWidth = w * k,
+                cap = StrokeCap.Round
+            )
+        }
+        fun head(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) {
+            val path = Path()
+            path.moveTo(x1 * k, y1 * k)
+            path.lineTo(x2 * k, y2 * k)
+            path.lineTo(x3 * k, y3 * k)
+            path.close()
+            drawPath(path, white)
+        }
+        when (type) {
+            AccountType.ASSET -> {
+                stack(2f, 1); stack(10.5f, 2); stack(19f, 3)
+            }
+            AccountType.LIABILITY -> {
+                stack(10.5f, 1); stack(19f, 2)
+                drawCircle(color = white, radius = 6f * k, center = Offset(8f * k, 9f * k), style = Stroke(width = 1.8f * k))
+                line(8f, 9f, 8f, 5.5f, 1.8f)
+                line(8f, 9f, 11f, 10.5f, 1.8f)
+            }
+            AccountType.INCOME -> {
+                stack(10.5f, 1); stack(19f, 2)
+                line(3f, 3f, 11f, 11f, 2.2f)
+                head(14f, 14f, 7.5f, 13f, 13f, 7.5f)
+            }
+            AccountType.EXPENSE -> {
+                stack(2f, 2); stack(10.5f, 1)
+                line(15f, 14f, 23f, 5f, 2.2f)
+                head(25.5f, 2.5f, 18f, 4.5f, 24f, 10.5f)
             }
         }
     }
 }
 
 @Composable
-fun WhiteBox(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(
+fun CalendarIcon(modifier: Modifier = Modifier, tint: Color = GreenText) {
+    Canvas(modifier) {
+        val k = size.width / 28f
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(3f * k, 6f * k),
+            size = Size(22f * k, 19f * k),
+            cornerRadius = CornerRadius(3f * k, 3f * k),
+            style = Stroke(width = 1.8f * k)
+        )
+        drawRect(color = tint, topLeft = Offset(3f * k, 6f * k), size = Size(22f * k, 5f * k))
+        drawLine(color = tint, start = Offset(9f * k, 3f * k), end = Offset(9f * k, 8f * k), strokeWidth = 1.8f * k, cap = StrokeCap.Round)
+        drawLine(color = tint, start = Offset(19f * k, 3f * k), end = Offset(19f * k, 8f * k), strokeWidth = 1.8f * k, cap = StrokeCap.Round)
+        for (r in 0..1) {
+            for (c in 0..2) {
+                drawRect(
+                    color = tint,
+                    topLeft = Offset((6.5f + c * 6.2f) * k, (13.5f + r * 5f) * k),
+                    size = Size(3.6f * k, 3f * k)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CalendarBadge(modifier: Modifier = Modifier) {
+    Box(
         modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(10.dp))
-            .background(Color.White, RoundedCornerShape(10.dp)),
-        content = content
-    )
+            .shadow(4.dp, CircleShape)
+            .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFD2D2D2))), CircleShape)
+            .border(BorderStroke(1.5.dp, SilverBorder), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        CalendarIcon(Modifier.fillMaxSize(0.58f))
+    }
+}
+
+@Composable
+fun CalcIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val k = size.width / 28f
+        val c = Color(0xFF333333)
+        val w = 2.2f * k
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float) {
+            drawLine(color = c, start = Offset(x1 * k, y1 * k), end = Offset(x2 * k, y2 * k), strokeWidth = w, cap = StrokeCap.Round)
+        }
+        line(3.5f, 7f, 10.5f, 7f); line(7f, 3.5f, 7f, 10.5f)
+        line(17.5f, 7f, 24.5f, 7f)
+        drawCircle(color = c, radius = 1.4f * k, center = Offset(21f * k, 3.6f * k))
+        drawCircle(color = c, radius = 1.4f * k, center = Offset(21f * k, 10.4f * k))
+        line(3.8f, 17.8f, 10.2f, 24.2f); line(10.2f, 17.8f, 3.8f, 24.2f)
+        line(17.5f, 21f, 24.5f, 21f)
+    }
+}
+
+fun cardShape(r: Float, cut: Float) = GenericShape { size, _ ->
+    moveTo(r, 0f)
+    lineTo(size.width - r, 0f)
+    arcTo(Rect(size.width - 2 * r, 0f, size.width, 2 * r), -90f, 90f, false)
+    lineTo(size.width, size.height - cut)
+    lineTo(size.width - cut, size.height)
+    lineTo(r, size.height)
+    arcTo(Rect(0f, size.height - 2 * r, 2 * r, size.height), 90f, 90f, false)
+    lineTo(0f, r)
+    arcTo(Rect(0f, 0f, 2 * r, 2 * r), 180f, 90f, false)
+    close()
+}
+
+@Composable
+fun TypeCard(
+    type: AccountType,
+    total: Long,
+    onOpen: () -> Unit,
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val cut = 44.dp
+    val outer = remember(density) { with(density) { cardShape(12.dp.toPx(), cut.toPx()) } }
+    val inner = remember(density) { with(density) { cardShape(10.dp.toPx(), (cut - 4.dp).toPx()) } }
+    val base = typeColor(type)
+    Box(modifier.height(146.dp)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .shadow(6.dp, outer)
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFF9E9E9E))), outer)
+                .padding(3.dp)
+                .clip(inner)
+                .background(Brush.linearGradient(listOf(Color.White, Color(0xFFDADADA))))
+                .clickable(onClick = onOpen)
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(lerp(base, Color.White, 0.28f), base, lerp(base, Color.Black, 0.35f))
+                            )
+                        )
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TypeIcon(type, Modifier.size(26.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(type.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    Text(
+                        money(total),
+                        Modifier.align(Alignment.Center).padding(bottom = 10.dp),
+                        color = if (total < 0) NegativeRed else base,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.BottomEnd).size(cut).clickable(onClick = onAdd)) {
+            Canvas(Modifier.fillMaxSize()) {
+                val tri = Path()
+                tri.moveTo(size.width, 0f)
+                tri.lineTo(size.width, size.height)
+                tri.lineTo(0f, size.height)
+                tri.close()
+                drawPath(
+                    tri,
+                    Brush.linearGradient(
+                        listOf(Color(0xFFFAFAFA), Color(0xFFA9A9A9)),
+                        start = Offset(size.width, 0f),
+                        end = Offset(0f, size.height)
+                    )
+                )
+                // iç kabartma
+                val inset = 5.dp.toPx()
+                val inner = Path()
+                inner.moveTo(size.width - inset, inset * 1.6f)
+                inner.lineTo(size.width - inset, size.height - inset)
+                inner.lineTo(inset * 1.6f, size.height - inset)
+                inner.close()
+                drawPath(
+                    inner,
+                    Brush.linearGradient(
+                        listOf(Color(0xFFEDEDED), Color(0xFFCFCFCF)),
+                        start = Offset(size.width, 0f),
+                        end = Offset(0f, size.height)
+                    )
+                )
+                drawPath(tri, Color(0xFF8C8C8C), style = Stroke(width = 2f))
+                // belirgin + işareti (kabartmalı)
+                val c = Offset(size.width * 0.68f, size.height * 0.68f)
+                val r = 6.dp.toPx()
+                val sw = 3.6.dp.toPx()
+                val shift = Offset(1.5.dp.toPx(), 1.5.dp.toPx())
+                drawLine(Color.White, c - Offset(r, 0f) + shift, c + Offset(r, 0f) + shift, strokeWidth = sw, cap = StrokeCap.Round)
+                drawLine(Color.White, c - Offset(0f, r) + shift, c + Offset(0f, r) + shift, strokeWidth = sw, cap = StrokeCap.Round)
+                drawLine(Color(0xFF4A4A4A), c - Offset(r, 0f), c + Offset(r, 0f), strokeWidth = sw, cap = StrokeCap.Round)
+                drawLine(Color(0xFF4A4A4A), c - Offset(0f, r), c + Offset(0f, r), strokeWidth = sw, cap = StrokeCap.Round)
+            }
+        }
+    }
 }
 
 @Composable
@@ -210,34 +463,41 @@ fun PeriodPill(month: YearMonth, onMonth: (YearMonth) -> Unit) {
     val f1 = DateTimeFormatter.ofPattern("dd MMM", TR)
     val f2 = DateTimeFormatter.ofPattern("dd MMM yyyy", TR)
     val label = month.atDay(1).format(f1) + " – " + month.atEndOfMonth().format(f2)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(24.dp))
-            .background(Color.White, RoundedCornerShape(24.dp))
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("📅", fontSize = 20.sp)
-        Text(
-            "‹",
-            Modifier.clickable { onMonth(month.minusMonths(1)) }.padding(horizontal = 14.dp, vertical = 2.dp),
-            fontSize = 22.sp,
-            color = GreenText
-        )
-        Text(
-            label,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center,
-            color = GreenText,
-            fontSize = 12.sp
-        )
-        Text(
-            "›",
-            Modifier.clickable { onMonth(month.plusMonths(1)) }.padding(horizontal = 14.dp, vertical = 2.dp),
-            fontSize = 22.sp,
-            color = GreenText
-        )
+    val shape = RoundedCornerShape(24.dp)
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 22.dp)
+                .shadow(3.dp, shape)
+                .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFEDEDED))), shape)
+                .border(BorderStroke(1.5.dp, SilverBorder), shape)
+                .padding(end = 10.dp)
+                .heightIn(min = 38.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.width(34.dp))
+            Text(
+                "‹",
+                Modifier.clickable { onMonth(month.minusMonths(1)) }.padding(horizontal = 12.dp, vertical = 2.dp),
+                fontSize = 22.sp,
+                color = GreenText
+            )
+            Text(
+                label,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                color = GreenText,
+                fontSize = 12.sp
+            )
+            Text(
+                "›",
+                Modifier.clickable { onMonth(month.plusMonths(1)) }.padding(horizontal = 12.dp, vertical = 2.dp),
+                fontSize = 22.sp,
+                color = GreenText
+            )
+        }
+        CalendarBadge(Modifier.align(Alignment.CenterStart).size(46.dp))
     }
 }
 
