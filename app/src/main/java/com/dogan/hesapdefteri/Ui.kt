@@ -57,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,6 +96,7 @@ sealed interface Screen {
     ) : Screen
     data class AddAccount(val type: AccountType, val group: String, val back: Screen) : Screen
     data object Favorites : Screen
+    data object Update : Screen
     data object Settings : Screen
     data object PinSetup : Screen
     data class Info(val title: String, val body: String) : Screen
@@ -157,6 +159,16 @@ fun App(vm: MainVm) {
     var unlocked by remember { mutableStateOf(!PinStore.isSet(ctx)) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     var month by remember { mutableStateOf(YearMonth.now()) }
+    var pendingUpdate by remember { mutableStateOf<Updater.Release?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val r = Updater.latest()
+            if (r != null && r.code > Updater.currentCode(ctx)) pendingUpdate = r
+        } catch (e: Exception) {
+            // ağ yoksa sessizce geç
+        }
+    }
 
     fun goBack() {
         screen = when (val s = screen) {
@@ -168,7 +180,7 @@ fun App(vm: MainVm) {
             is Screen.TxTypes -> s.back
             is Screen.AddTxn -> s.back
             is Screen.AddAccount -> s.back
-            Screen.Favorites, Screen.Settings, Screen.PinSetup, is Screen.Info -> Screen.Home
+            Screen.Favorites, Screen.Update, Screen.Settings, Screen.PinSetup, is Screen.Info -> Screen.Home
         }
     }
 
@@ -190,6 +202,7 @@ fun App(vm: MainVm) {
 
     val activity = ctx as? Activity
     val menu: List<Pair<String, () -> Unit>> = listOf(
+        "Güncellemeyi kontrol et" to { screen = Screen.Update },
         "Ayarlar" to { screen = Screen.Settings },
         "Uygulama kilidi (PIN)" to { screen = Screen.PinSetup },
         "Kullanım kılavuzu" to { screen = Screen.Info("Kullanım kılavuzu", GUIDE) },
@@ -206,7 +219,9 @@ fun App(vm: MainVm) {
             onOpen = { screen = Screen.Category(it) },
             onAdd = { openNewTx(it, null, Screen.Home) },
             onOpenFavs = { screen = Screen.Favorites },
-            menu = menu
+            menu = menu,
+            update = pendingUpdate,
+            onOpenUpdate = { screen = Screen.Update }
         )
         is Screen.Category -> CategoryScreen(
             s.type, accounts, txns, month,
@@ -281,6 +296,11 @@ fun App(vm: MainVm) {
             onBack = { goBack() },
             onHome = { screen = Screen.Home }
         )
+        Screen.Update -> UpdateScreen(
+            pendingUpdate,
+            onBack = { goBack() },
+            onHome = { screen = Screen.Home }
+        )
         Screen.Settings -> SettingsScreen(
             onBack = { goBack() },
             onHome = { screen = Screen.Home },
@@ -343,7 +363,9 @@ fun HomeScreen(
     onOpen: (AccountType) -> Unit,
     onAdd: (AccountType) -> Unit,
     onOpenFavs: () -> Unit,
-    menu: List<Pair<String, () -> Unit>>
+    menu: List<Pair<String, () -> Unit>>,
+    update: Updater.Release?,
+    onOpenUpdate: () -> Unit
 ) {
     val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
     fun total(t: AccountType) = accounts.filter { it.type == t }.sumOf { bal[it.id] ?: 0L }
@@ -358,6 +380,17 @@ fun HomeScreen(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    if (update != null) {
+                        WhiteBox {
+                            Row(
+                                Modifier.fillMaxWidth().clickable(onClick = onOpenUpdate).padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Yeni sürüm var (build ${update.code}). Güncellemek için dokun.", Modifier.weight(1f), color = GreenText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("›", fontSize = 22.sp, color = GreenText)
+                            }
+                        }
+                    }
                     PeriodPill(month, onMonth)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         TypeCard(AccountType.ASSET, total(AccountType.ASSET), { onOpen(AccountType.ASSET) }, { onAdd(AccountType.ASSET) }, Modifier.weight(1f))
