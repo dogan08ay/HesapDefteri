@@ -12,6 +12,8 @@ Taksit seçersen toplam tutar belirlediğin sayıda eşit parçaya bölünür ve
 
 Sık yaptığın bir işlemi kaydetmek için işlem girerken “Sık kullanılanlara ekle” kutusunu işaretle ve bir ad ver. Hazır kısayollar da Sık kullanılanlar ekranında seni bekler.
 
+Yanlış girdiğin bir işlemi düzeltmek için satırına dokun. Silmek için çöp kutusunu kullan. Verilerini Ayarlar bölümünden yedekleyebilirsin.
+
 Kredi kartlarında limit ve hesap kesim gününü kartın ekranından girebilirsin. Kesim gününde o güne kadarki borç ekstre borcu olur. Kesimden sonraki harcamalar güncel borca eklenir ama ekstreye dahil edilmez, kalan limit her harcamada güncellenir.
 
 Grafik ekranında Özet, Gider ve Gelir sekmeleri ile günlük, haftalık, aylık, yıllık ve tüm zamanlar aralıklarını kullanabilirsin."""
@@ -42,4 +44,8 @@ Bu sürümde:
 • Aylık bütçe paneli ve ayrıntılı günlük işlem tabloları
 • Kredi kartı limiti, hesap kesim günü ve ekstre borcu
 • Özet, gider ve gelir grafikleri: halka grafik, tablo ve dönem seçici
-• Uygulama içinden güncelleme"""
+• Uygulama içinden güncelleme
+• İşlem düzenleme: işlem satırına dokun
+• Yedek al ve yedekten geri yükle (Ayarlar)
+• Genel durum kartı: kâr ve nakit akışı, yıllık/aylık/haftalık/günlük
+• PIN kilidi arka plandan 30 saniye sonra dönüşte yeniden sorar"""

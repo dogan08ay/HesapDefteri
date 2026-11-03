@@ -26,7 +26,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -53,7 +52,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -118,30 +116,47 @@ fun AppBackground(content: @Composable () -> Unit) {
 fun LogoMark(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val k = size.width / 108f
+        fun pt(x: Float, y: Float) = Offset(x * k, y * k)
         drawRoundRect(
-            brush = Brush.linearGradient(listOf(Color(0xFF2E8B57), Color(0xFF14452B))),
+            brush = Brush.linearGradient(listOf(Color(0xFF22B57C), Color(0xFF0A3D2A)), start = Offset(0f, 0f), end = Offset(size.width, size.height)),
             cornerRadius = CornerRadius(24f * k, 24f * k)
         )
-        fun poly(vararg p: Float): Path {
-            val path = Path()
-            path.moveTo(p[0] * k, p[1] * k)
-            var i = 2
-            while (i < p.size) {
-                path.lineTo(p[i] * k, p[i + 1] * k)
-                i += 2
-            }
-            path.close()
-            return path
-        }
-        drawPath(poly(52.5f, 37f, 30f, 41f, 30f, 74f, 52.5f, 70.5f), Color(0xFFF4EBD6))
-        drawPath(poly(55.5f, 37f, 78f, 41f, 78f, 74f, 55.5f, 70.5f), Color(0xFFF4EBD6))
+        // defter sayfaları
+        val left = Path()
+        left.moveTo(54f * k, 78f * k)
+        left.cubicTo(45f * k, 72f * k, 35f * k, 70f * k, 24f * k, 72f * k)
+        left.lineTo(24f * k, 52f * k)
+        left.cubicTo(35f * k, 50f * k, 45f * k, 52f * k, 54f * k, 58f * k)
+        left.close()
+        drawPath(left, Color(0xFFE6DBBC))
+        val right = Path()
+        right.moveTo(54f * k, 78f * k)
+        right.cubicTo(63f * k, 72f * k, 73f * k, 70f * k, 84f * k, 72f * k)
+        right.lineTo(84f * k, 52f * k)
+        right.cubicTo(73f * k, 50f * k, 63f * k, 52f * k, 54f * k, 58f * k)
+        right.close()
+        drawPath(right, Color(0xFFF8F1DE))
+        // altın para
+        drawCircle(
+            brush = Brush.linearGradient(listOf(Color(0xFFFFE9A0), Color(0xFFE5A91A)), start = pt(36f, 20f), end = pt(72f, 56f)),
+            radius = 18f * k,
+            center = pt(54f, 38f)
+        )
+        drawCircle(color = Color(0xFFB57A00), radius = 18f * k, center = pt(54f, 38f), style = Stroke(width = 1.6f * k))
+        drawCircle(color = Color(0xCCFFF4C8), radius = 13.5f * k, center = pt(54f, 38f), style = Stroke(width = 1.2f * k))
+        // yükselen ok
         val line = Path()
-        line.moveTo(36f * k, 64f * k)
-        line.lineTo(47f * k, 53f * k)
-        line.lineTo(55f * k, 60f * k)
-        line.lineTo(71f * k, 44f * k)
-        drawPath(line, Color(0xFFE09A12), style = Stroke(width = 4f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(poly(78f, 37f, 67f, 39f, 76f, 48f), Color(0xFFE09A12))
+        line.moveTo(45f * k, 44f * k)
+        line.lineTo(51f * k, 38f * k)
+        line.lineTo(56f * k, 42f * k)
+        line.lineTo(63f * k, 34f * k)
+        drawPath(line, Color(0xFF7A4E00), style = Stroke(width = 3f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        val head = Path()
+        head.moveTo(67.5f * k, 30f * k)
+        head.lineTo(60.5f * k, 31.5f * k)
+        head.lineTo(66f * k, 37.5f * k)
+        head.close()
+        drawPath(head, Color(0xFF7A4E00))
     }
 }
 
@@ -430,6 +445,7 @@ fun TypeCard(
                         end = Offset(0f, size.height)
                     )
                 )
+                // iç kabartma
                 val inset = 5.dp.toPx()
                 val inner = Path()
                 inner.moveTo(size.width - inset, inset * 1.6f)
@@ -445,6 +461,7 @@ fun TypeCard(
                     )
                 )
                 drawPath(tri, Color(0xFF8C8C8C), style = Stroke(width = 2f))
+                // belirgin + işareti (kabartmalı)
                 val c = Offset(size.width * 0.68f, size.height * 0.68f)
                 val r = 6.dp.toPx()
                 val sw = 3.6.dp.toPx()

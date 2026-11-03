@@ -81,6 +81,15 @@ interface AppDao {
     suspend fun insertTxns(list: List<Txn>)
 
     @Insert
+    suspend fun insertAccounts(list: List<Account>)
+
+    @Insert
+    suspend fun insertFavorites(list: List<Favorite>)
+
+    @Update
+    suspend fun updateTxn(t: Txn)
+
+    @Insert
     suspend fun insertFavorite(f: Favorite): Long
 
     @Query("DELETE FROM transactions")

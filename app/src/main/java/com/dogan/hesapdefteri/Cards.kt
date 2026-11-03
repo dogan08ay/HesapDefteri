@@ -1,11 +1,24 @@
 package com.dogan.hesapdefteri
 
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.YearMonth
 
-fun parseCents(text: String): Long? =
-    text.trim().replace(',', '.').toBigDecimalOrNull()?.multiply(BigDecimal(100))?.toLong()
+/**
+ * "1.250,50", "1250,5", "1250.50", "1.250.000" gibi girişleri kuruşa çevirir.
+ * Virgül varsa Türkçe biçim (nokta binlik), yalnız nokta varsa ve birden fazlaysa binlik ayracı sayılır.
+ */
+fun parseCents(text: String): Long? {
+    var t = text.trim().replace(" ", "").replace("TL", "", ignoreCase = true)
+    if (t.isEmpty()) return null
+    t = if (t.contains(',')) {
+        t.replace(".", "").replace(',', '.')
+    } else if (t.count { it == '.' } > 1) {
+        t.replace(".", "")
+    } else t
+    return t.toBigDecimalOrNull()?.multiply(BigDecimal(100))?.setScale(0, RoundingMode.HALF_UP)?.toLong()
+}
 
 fun clampDay(ym: YearMonth, day: Int): LocalDate = ym.atDay(minOf(day, ym.lengthOfMonth()))
 

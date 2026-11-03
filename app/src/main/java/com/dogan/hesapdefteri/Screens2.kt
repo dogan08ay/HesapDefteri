@@ -3,7 +3,11 @@
 package com.dogan.hesapdefteri
 
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.time.LocalDate
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,16 +64,72 @@ fun InfoScreen(title: String, body: String, onBack: () -> Unit, onHome: () -> Un
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onHome: () -> Unit, onReset: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onHome: () -> Unit,
+    onReset: () -> Unit,
+    onExport: () -> String,
+    onImport: (String, (Boolean, String) -> Unit) -> Unit
+) {
+    val ctx = LocalContext.current
     var confirm by remember { mutableStateOf(false) }
+    var confirmImport by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.openOutputStream(uri)?.use { it.write(onExport().toByteArray(Charsets.UTF_8)) }
+                message = "Yedek kaydedildi."
+            } catch (e: Exception) {
+                message = "Yedek kaydedilemedi: ${e.message}"
+            }
+        }
+    }
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                val text = ctx.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                if (text == null) {
+                    message = "Dosya okunamadı."
+                } else {
+                    onImport(text) { ok, msg -> message = msg }
+                }
+            } catch (e: Exception) {
+                message = "Dosya okunamadı: ${e.message}"
+            }
+        }
+    }
+
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TopBar("Ayarlar", onBack, onHome)
-            Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                WhiteBox {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Yedekleme", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Veriler yalnızca bu telefonda durur. Uygulamayı silersen ya da telefonu değiştirirsen kaybolur, bu yüzden arada yedek al.",
+                            fontSize = 12.sp
+                        )
+                        Button(
+                            onClick = { saveLauncher.launch("hesap-defteri-yedek-${LocalDate.now()}.json") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Yedek al") }
+                        OutlinedButton(
+                            onClick = { confirmImport = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Yedekten geri yükle") }
+                        message?.let { Text(it, fontSize = 12.sp, color = GreenText) }
+                    }
+                }
                 WhiteBox {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Veriler", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Text("Tüm hesaplar, işlemler ve kısayollar yalnızca bu cihazda saklanır.")
+                        Text("Tüm hesaplar, işlemler ve kısayollar bu cihazda saklanır.", fontSize = 12.sp)
                         Button(
                             onClick = { confirm = true },
                             colors = ButtonDefaults.buttonColors(containerColor = typeColor(AccountType.EXPENSE))
@@ -86,6 +146,20 @@ fun SettingsScreen(onBack: () -> Unit, onHome: () -> Unit, onReset: () -> Unit) 
             text = { Text("Tüm işlemler ve kısayollar silinecek, varsayılan kategoriler yeniden yüklenecek. Bu işlem geri alınamaz.") },
             confirmButton = { TextButton(onClick = { onReset(); confirm = false }) { Text("Sil") } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Vazgeç") } }
+        )
+    }
+    if (confirmImport) {
+        AlertDialog(
+            onDismissRequest = { confirmImport = false },
+            title = { Text("Yedekten geri yüklensin mi?") },
+            text = { Text("Şu anki tüm veriler silinip yedekteki verilerle değiştirilecek.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmImport = false
+                    openLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
+                }) { Text("Devam") }
+            },
+            dismissButton = { TextButton(onClick = { confirmImport = false }) { Text("Vazgeç") } }
         )
     }
 }

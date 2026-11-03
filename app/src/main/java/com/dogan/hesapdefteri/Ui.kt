@@ -7,6 +7,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import android.app.Activity
+import android.os.SystemClock
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.AlertDialog
@@ -96,6 +99,7 @@ sealed interface Screen {
         val back: Screen
     ) : Screen
     data class AddAccount(val type: AccountType, val group: String, val parentId: Long?, val back: Screen) : Screen
+    data class EditTxn(val txnId: Long, val back: Screen) : Screen
     data object Favorites : Screen
     data object Update : Screen
     data object Settings : Screen
@@ -227,6 +231,14 @@ fun App(vm: MainVm) {
         }
     }
 
+    var stoppedAt by remember { mutableStateOf(0L) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { stoppedAt = SystemClock.elapsedRealtime() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        if (stoppedAt != 0L && PinStore.isSet(ctx) && SystemClock.elapsedRealtime() - stoppedAt > 30_000L) {
+            unlocked = false
+        }
+    }
+
     fun goBack() {
         screen = when (val s = screen) {
             Screen.Home -> Screen.Home
@@ -240,6 +252,7 @@ fun App(vm: MainVm) {
             is Screen.TxTypes -> s.back
             is Screen.AddTxn -> s.back
             is Screen.AddAccount -> s.back
+            is Screen.EditTxn -> s.back
             Screen.Favorites, Screen.Update, Screen.Settings, Screen.PinSetup, is Screen.Info -> Screen.Home
         }
     }
@@ -281,7 +294,8 @@ fun App(vm: MainVm) {
             onOpenFavs = { screen = Screen.Favorites },
             menu = menu,
             update = pendingUpdate,
-            onOpenUpdate = { screen = Screen.Update }
+            onOpenUpdate = { screen = Screen.Update },
+            onEditTxn = { t -> screen = Screen.EditTxn(t.id, Screen.Home) }
         )
         is Screen.Category -> CategoryScreen(
             s.type, accounts, txns, month,
@@ -304,6 +318,7 @@ fun App(vm: MainVm) {
             onOpenAccount = { a -> screen = Screen.AccountDetail(s.type, s.group, a.id) },
             onRename = { a, n -> vm.updateAccount(a.copy(name = n)) },
             onDeleteAccount = { vm.deleteAccount(it) },
+            onEdit = { t -> screen = Screen.EditTxn(t.id, s) },
             onDelete = { vm.deleteTxn(it) }
         )
         is Screen.AccountDetail -> AccountDetailScreen(
@@ -315,6 +330,7 @@ fun App(vm: MainVm) {
             onOpenAccount = { a -> screen = Screen.AccountDetail(s.type, s.group, a.id) },
             onAddSub = { screen = Screen.AddAccount(s.type, s.group, s.accountId, s) },
             onUpdateAccount = { vm.updateAccount(it) },
+            onEdit = { t -> screen = Screen.EditTxn(t.id, s) },
             onDelete = { vm.deleteTxn(it) }
         )
         is Screen.Chart -> ChartScreen(
@@ -331,7 +347,7 @@ fun App(vm: MainVm) {
         is Screen.AddTxn -> {
             val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
             AddTxnScreen(
-                s.type, accounts, bal, s.fav, s.preset, s.accountId,
+                s.type, accounts, bal, s.fav, s.preset, s.accountId, null,
                 onBack = { goBack() },
                 onHome = { screen = Screen.Home },
                 onNewAccount = { name, group, type, parentId, limit, cutoff, done ->
@@ -352,6 +368,30 @@ fun App(vm: MainVm) {
                 goBack()
             }
         )
+        is Screen.EditTxn -> {
+            val t = txns.firstOrNull { it.id == s.txnId }
+            if (t == null) {
+                LaunchedEffect(s) { screen = s.back }
+            } else {
+                val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
+                val fT = accounts.firstOrNull { it.id == t.fromId }?.type
+                val tT = accounts.firstOrNull { it.id == t.toId }?.type
+                val m = TxMode.values().firstOrNull { it.from == fT && it.to == tT } ?: TxMode.TRANSFER
+                AddTxnScreen(
+                    typeOfMode(m), accounts, bal, null, null, null, t,
+                    onBack = { goBack() },
+                    onHome = { screen = Screen.Home },
+                    onNewAccount = { name, group, type, parentId, limit, cutoff, done ->
+                        vm.addAccount(name, group, type, parentId, limit, cutoff, done)
+                    },
+                    onSave = { _, _ -> },
+                    onUpdate = { u ->
+                        vm.updateTxn(u)
+                        screen = s.back
+                    }
+                )
+            }
+        }
         Screen.Favorites -> FavoritesScreen(
             favorites,
             onPreset = { p -> screen = Screen.AddTxn(typeOfMode(p.mode), null, p, null, Screen.Favorites) },
@@ -368,7 +408,9 @@ fun App(vm: MainVm) {
         Screen.Settings -> SettingsScreen(
             onBack = { goBack() },
             onHome = { screen = Screen.Home },
-            onReset = { vm.resetAll() }
+            onReset = { vm.resetAll() },
+            onExport = { vm.exportJson() },
+            onImport = { text, done -> vm.importJson(text, done) }
         )
         Screen.PinSetup -> PinSetupScreen(onBack = { goBack() }, onHome = { screen = Screen.Home })
         is Screen.Info -> InfoScreen(s.title, s.body, onBack = { goBack() }, onHome = { screen = Screen.Home })
@@ -429,7 +471,8 @@ fun HomeScreen(
     onOpenFavs: () -> Unit,
     menu: List<Pair<String, () -> Unit>>,
     update: Updater.Release?,
-    onOpenUpdate: () -> Unit
+    onOpenUpdate: () -> Unit,
+    onEditTxn: (Txn) -> Unit
 ) {
     val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
     fun total(t: AccountType) = accounts.filter { it.type == t }.sumOf { bal[it.id] ?: 0L }
@@ -464,9 +507,9 @@ fun HomeScreen(
                         TypeCard(AccountType.INCOME, total(AccountType.INCOME), { onOpen(AccountType.INCOME) }, { onAdd(AccountType.INCOME) }, Modifier.weight(1f))
                         TypeCard(AccountType.EXPENSE, total(AccountType.EXPENSE), { onOpen(AccountType.EXPENSE) }, { onAdd(AccountType.EXPENSE) }, Modifier.weight(1f))
                     }
-                    MonthlyBudgetCard(accounts, txns, month)
+                    StatusCard(accounts, txns)
                     FavoritesEntry(onOpenFavs)
-                    DailyCard(accounts, txns)
+                    DailyCard(accounts, txns, onEditTxn)
                 }
                 if (menuOpen) SideMenu(menu) { menuOpen = false }
             }
@@ -656,13 +699,22 @@ fun SignBadge(sign: Int) {
 }
 
 @Composable
-fun TxnLine(title: String, subtitle: String, cents: Long, sign: Int, zebra: Boolean, onDelete: (() -> Unit)?) {
+fun TxnLine(
+    title: String,
+    subtitle: String,
+    cents: Long,
+    sign: Int,
+    zebra: Boolean,
+    onDelete: (() -> Unit)?,
+    onClick: (() -> Unit)? = null
+) {
     val color = if (sign > 0) Color(0xFF1E8A5E) else if (sign < 0) Color(0xFFB3261E) else Color(0xFF555555)
     val prefix = if (sign > 0) "+" else if (sign < 0) "−" else ""
     Row(
         Modifier
             .fillMaxWidth()
             .background(if (zebra) Color(0xFFF6F6F6) else Color.Transparent)
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -688,8 +740,10 @@ fun TxnTable(
     list: List<Txn>,
     byId: Map<Long, Account>,
     ids: Set<Long>?,
+    onEdit: ((Txn) -> Unit)? = null,
     onDelete: ((Txn) -> Unit)?
 ) {
+    var pendingDelete by remember { mutableStateOf<Txn?>(null) }
     WhiteBox {
         SectionHeader(title)
         if (list.isEmpty()) {
@@ -702,10 +756,26 @@ fun TxnTable(
             TxnLine(
                 "${byId[t.fromId]?.name ?: "?"} → ${byId[t.toId]?.name ?: "?"}",
                 sub, t.cents, sign, i % 2 == 1,
-                if (onDelete != null) ({ onDelete(t) }) else null
+                if (onDelete != null) ({ pendingDelete = t }) else null,
+                if (onEdit != null) ({ onEdit(t) }) else null
             )
             HorizontalDivider(color = Color(0xFFE3E3E3))
         }
+    }
+    pendingDelete?.let { t ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("İşlem silinsin mi?") },
+            text = {
+                Text(
+                    "${byId[t.fromId]?.name ?: "?"} → ${byId[t.toId]?.name ?: "?"}  ${money(t.cents)}\n${dayText(t.date)}"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onDelete?.invoke(t); pendingDelete = null }) { Text("Sil") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Vazgeç") } }
+        )
     }
 }
 
@@ -725,6 +795,7 @@ fun GroupScreen(
     onOpenAccount: (Account) -> Unit,
     onRename: (Account, String) -> Unit,
     onDeleteAccount: (Account) -> Unit,
+    onEdit: (Txn) -> Unit,
     onDelete: (Txn) -> Unit
 ) {
     val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
@@ -835,7 +906,7 @@ fun GroupScreen(
                         AddPanel("Yeni hesap ekle", typeColor(type)) { onAddAccount(null) }
                     }
                 }
-                TxnTable("İşlemler", list, byId, ids) { onDelete(it) }
+                TxnTable("İşlemler", list, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
             }
         }
     }
@@ -949,6 +1020,7 @@ fun AccountDetailScreen(
     onOpenAccount: (Account) -> Unit,
     onAddSub: () -> Unit,
     onUpdateAccount: (Account) -> Unit,
+    onEdit: (Txn) -> Unit,
     onDelete: (Txn) -> Unit
 ) {
     val acc = accounts.firstOrNull { it.id == accountId }
@@ -1026,12 +1098,12 @@ fun AccountDetailScreen(
                 if (info != null && lastC != null && prevC != null) {
                     val l = lastC.toEpochDay()
                     val p = prevC.toEpochDay()
-                    TxnTable("Güncel dönem (ekstreye dahil değil)", list.filter { it.date > l }, byId, ids) { onDelete(it) }
-                    TxnTable("Son ekstre · kesim ${lastC.format(dateFmt)}", list.filter { it.date > p && it.date <= l }, byId, ids) { onDelete(it) }
+                    TxnTable("Güncel dönem (ekstreye dahil değil)", list.filter { it.date > l }, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
+                    TxnTable("Son ekstre · kesim ${lastC.format(dateFmt)}", list.filter { it.date > p && it.date <= l }, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
                     val older = list.filter { it.date <= p }
-                    if (older.isNotEmpty()) TxnTable("Önceki hareketler", older, byId, ids) { onDelete(it) }
+                    if (older.isNotEmpty()) TxnTable("Önceki hareketler", older, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
                 } else {
-                    TxnTable("İşlemler", list, byId, ids) { onDelete(it) }
+                    TxnTable("İşlemler", list, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
                 }
             }
         }
@@ -1295,24 +1367,30 @@ fun AddTxnScreen(
     fav: Favorite?,
     preset: Preset?,
     accountId: Long?,
+    editTxn: Txn?,
     onBack: () -> Unit,
     onHome: () -> Unit,
     onNewAccount: (String, String, AccountType, Long?, Long?, Int?, (Account) -> Unit) -> Unit,
-    onSave: (List<Txn>, Favorite?) -> Unit
+    onSave: (List<Txn>, Favorite?) -> Unit,
+    onUpdate: (Txn) -> Unit = {}
 ) {
     val favFrom = fav?.let { f -> accounts.firstOrNull { it.id == f.fromId } }
     val favTo = fav?.let { f -> accounts.firstOrNull { it.id == f.toId } }
     val acc = accountId?.let { id -> accounts.firstOrNull { it.id == id } }
+    val eFrom = editTxn?.let { e -> accounts.firstOrNull { it.id == e.fromId } }
+    val eTo = editTxn?.let { e -> accounts.firstOrNull { it.id == e.toId } }
+    val editing = editTxn != null
     val mode = remember {
         preset?.mode
+            ?: (if (editTxn != null) TxMode.values().firstOrNull { it.from == eFrom?.type && it.to == eTo?.type } else null)
             ?: TxMode.values().firstOrNull { it.from == favFrom?.type && it.to == favTo?.type }
             ?: modesFor(type).first()
     }
     var amountText by remember {
-        mutableStateOf(fav?.let { String.format(Locale.US, "%.2f", it.cents / 100.0) } ?: "")
+        mutableStateOf((editTxn?.cents ?: fav?.cents)?.let { String.format(Locale.US, "%.2f", it / 100.0) } ?: "")
     }
-    var note by remember { mutableStateOf(fav?.note ?: "") }
-    var date by remember { mutableStateOf(LocalDate.now()) }
+    var note by remember { mutableStateOf(editTxn?.note ?: fav?.note ?: "") }
+    var date by remember { mutableStateOf(editTxn?.let { LocalDate.ofEpochDay(it.date) } ?: LocalDate.now()) }
     var showDate by remember { mutableStateOf(false) }
     var taksit by remember { mutableStateOf(false) }
     var tekrar by remember { mutableStateOf(false) }
@@ -1334,8 +1412,8 @@ fun AddTxnScreen(
         acc.type == mode.to -> false
         else -> null
     }
-    var from by remember { mutableStateOf(favFrom ?: (if (accIsFrom == true) acc else null) ?: fromOpts.singleOrNull()) }
-    var to by remember { mutableStateOf(favTo ?: (if (accIsFrom == false) acc else null) ?: toOpts.singleOrNull()) }
+    var from by remember { mutableStateOf(eFrom ?: favFrom ?: (if (accIsFrom == true) acc else null) ?: fromOpts.singleOrNull()) }
+    var to by remember { mutableStateOf(eTo ?: favTo ?: (if (accIsFrom == false) acc else null) ?: toOpts.singleOrNull()) }
     var picking by remember { mutableStateOf<Int?>(null) }
     var creating by remember { mutableStateOf<Int?>(null) }
     var creatingGroup by remember { mutableStateOf("") }
@@ -1386,7 +1464,7 @@ fun AddTxnScreen(
         }
         else -> AppBackground {
             Column(Modifier.fillMaxSize()) {
-                TopBar("${type.label} yönetimi", onBack, onHome)
+                TopBar(if (editing) "İşlemi düzenle" else "${type.label} yönetimi", onBack, onHome)
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1412,7 +1490,7 @@ fun AddTxnScreen(
                     SelectorRow(from?.name ?: "Hesap seçiniz") { picking = 0 }
                     Text("Hedef hesabı seçiniz:", Modifier.padding(start = 4.dp))
                     SelectorRow(to?.name ?: "Hesap seçiniz") { picking = 1 }
-                    WhiteBox {
+                    if (!editing) WhiteBox {
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1445,7 +1523,7 @@ fun AddTxnScreen(
                             }
                         }
                     }
-                    WhiteBox {
+                    if (!editing) WhiteBox {
                         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = saveFav, onCheckedChange = { saveFav = it })
                             Text("Sık kullanılanlara ekle", color = GreenText, style = MaterialTheme.typography.titleMedium)
@@ -1461,8 +1539,7 @@ fun AddTxnScreen(
                         modifier = Modifier.align(Alignment.CenterHorizontally),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E8A5E)),
                         onClick = {
-                            val cents = amountText.trim().replace(',', '.').toBigDecimalOrNull()
-                                ?.multiply(BigDecimal(100))?.toLong() ?: 0L
+                            val cents = parseCents(amountText) ?: 0L
                             val f = from
                             val t = to
                             val n = if (plan == Plan.SINGLE) 1 else (countText.toIntOrNull() ?: 0)
@@ -1473,7 +1550,17 @@ fun AddTxnScreen(
                                 f.id == t.id -> error = "Kaynak ve hedef farklı olmalı."
                                 plan != Plan.SINGLE && (n < 2 || n > 120) -> error = "Sayı 2 ile 120 arasında olmalı."
                                 saveFav && favName.isBlank() -> error = "Kısayol adı girin."
-                                else -> {
+                                else -> if (editTxn != null) {
+                                    onUpdate(
+                                        editTxn.copy(
+                                            cents = cents,
+                                            date = date.toEpochDay(),
+                                            note = note.trim(),
+                                            fromId = f.id,
+                                            toId = t.id
+                                        )
+                                    )
+                                } else {
                                     val list = (0 until n).map { k ->
                                         val c = if (plan == Plan.INSTALLMENT) {
                                             cents / n + (if (k == 0) cents % n else 0L)
@@ -1603,92 +1690,6 @@ fun AddAccountScreen(
     }
 }
 
-data class Budget(val income: Long, val spent: Long, val paid: Long, val credit: Long)
-
-@Composable
-fun BudgetRow(label: String, cents: Long, color: Color, sign: String, bold: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 5.dp)) {
-        Text(label, Modifier.weight(1f), fontSize = 13.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
-        Text(sign + money(cents), color = color, fontSize = 13.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium)
-    }
-}
-
-@Composable
-fun MonthlyBudgetCard(accounts: List<Account>, txns: List<Txn>, month: YearMonth) {
-    val b = remember(accounts, txns, month) {
-        val byId = accounts.associateBy { it.id }
-        val start = month.atDay(1).toEpochDay()
-        val end = month.atEndOfMonth().toEpochDay()
-        var income = 0L
-        var spent = 0L
-        var paid = 0L
-        var credit = 0L
-        for (t in txns) {
-            if (t.date < start || t.date > end) continue
-            val f = byId[t.fromId]?.type
-            val to = byId[t.toId]?.type
-            if (f == AccountType.INCOME) income += t.cents
-            else if (to == AccountType.EXPENSE && f == AccountType.ASSET) spent += t.cents
-            else if (to == AccountType.EXPENSE && f == AccountType.LIABILITY) credit += t.cents
-            else if (f == AccountType.ASSET && to == AccountType.LIABILITY) paid += t.cents
-        }
-        Budget(income, spent, paid, credit)
-    }
-    val out = b.spent + b.paid
-    val left = b.income - out
-    val ratio = if (b.income > 0) (out.toFloat() / b.income).coerceIn(0f, 1f) else if (out > 0) 1f else 0f
-    val green = Color(0xFF1E8A5E)
-    val red = Color(0xFFB3261E)
-    val monthTitle = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", TR))
-
-    WhiteBox {
-        SectionHeader("Aylık bütçe · $monthTitle")
-        Spacer(Modifier.height(6.dp))
-        BudgetRow("Gelen (gelirler)", b.income, green, "+")
-        BudgetRow("Harcamalar", b.spent, red, "−")
-        BudgetRow("Ödemeler (kart, kredi, borç)", b.paid, red, "−")
-        HorizontalDivider(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), color = Color(0xFFDDDDDD))
-        BudgetRow("Toplam giden", out, red, "−", bold = true)
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            LinearProgressIndicator(
-                progress = { ratio },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = if (ratio >= 1f) red else green,
-                trackColor = Color(0xFFE0E0E0)
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                if (b.income > 0) "Gelirin %${(ratio * 100).toInt()} kısmı kullanıldı" else if (out > 0) "Bu ay gelir girilmedi" else "Bu ay henüz hareket yok",
-                fontSize = 11.sp,
-                color = Color.Gray
-            )
-        }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(if (left >= 0) Color(0xFFE6F4EC) else Color(0xFFF9E6E4))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Ay sonu durumu (gelen − giden)", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(
-                (if (left > 0) "+" else "") + money(left),
-                color = if (left >= 0) green else red,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
-            )
-        }
-        if (b.credit > 0) {
-            Text(
-                "Kartla/borçla yapılan harcama: ${money(b.credit)}. Ödendiğinde “Ödemeler”e yansır.",
-                Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                fontSize = 11.sp,
-                color = Color.Gray
-            )
-        }
-    }
-}
-
 @Composable
 fun StatBox(label: String, value: String, color: Color, tint: Color, modifier: Modifier = Modifier) {
     Column(
@@ -1708,6 +1709,7 @@ fun DaySection(
     list: List<Txn>,
     sign: Int,
     showTotal: Boolean,
+    onEdit: (Txn) -> Unit,
     head: (Txn) -> String,
     sub: (Txn) -> String
 ) {
@@ -1724,13 +1726,13 @@ fun DaySection(
         Text("Tutar", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
     }
     list.forEachIndexed { i, t ->
-        TxnLine(head(t), sub(t), t.cents, sign, i % 2 == 1, null)
+        TxnLine(head(t), sub(t), t.cents, sign, i % 2 == 1, null, { onEdit(t) })
         HorizontalDivider(color = Color(0xFFE3E3E3))
     }
 }
 
 @Composable
-fun DailyCard(accounts: List<Account>, txns: List<Txn>) {
+fun DailyCard(accounts: List<Account>, txns: List<Txn>, onEdit: (Txn) -> Unit) {
     var day by remember { mutableStateOf(LocalDate.now()) }
     val byId = remember(accounts) { accounts.associateBy { it.id } }
     val dayTxns = remember(txns, day) { txns.filter { it.date == day.toEpochDay() } }
@@ -1774,24 +1776,26 @@ fun DailyCard(accounts: List<Account>, txns: List<Txn>) {
         }
         if (dayTxns.isEmpty()) {
             Text("Bu günde işlem yok.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
+        } else {
+            Text("Düzenlemek için bir satıra dokun.", Modifier.padding(horizontal = 12.dp), fontSize = 10.sp, color = Color.Gray)
         }
         DaySection(
-            "Gelirler", green, Color(0xFFE6F4EC), incomeL, 1, true,
+            "Gelirler", green, Color(0xFFE6F4EC), incomeL, 1, true, onEdit,
             head = { t -> nm(t.fromId) },
             sub = { t -> (byId[t.fromId]?.let { trail(it, byId) } ?: "") + " → " + nm(t.toId) + note(t) }
         )
         DaySection(
-            "Harcamalar", red, Color(0xFFF9E6E4), spentL, -1, true,
+            "Harcamalar", red, Color(0xFFF9E6E4), spentL, -1, true, onEdit,
             head = { t -> nm(t.toId) },
             sub = { t -> (byId[t.toId]?.let { trail(it, byId) } ?: "") + " · " + nm(t.fromId) + note(t) }
         )
         DaySection(
-            "Ödemeler", blue, Color(0xFFE5EEF2), paidL, -1, true,
+            "Ödemeler", blue, Color(0xFFE5EEF2), paidL, -1, true, onEdit,
             head = { t -> nm(t.toId) },
             sub = { t -> nm(t.fromId) + " hesabından" + note(t) }
         )
         DaySection(
-            "Diğer hareketler", Color(0xFF666666), Color(0xFFEFEFEF), otherL, 0, false,
+            "Diğer hareketler", Color(0xFF666666), Color(0xFFEFEFEF), otherL, 0, false, onEdit,
             head = { t -> nm(t.fromId) + " → " + nm(t.toId) },
             sub = { t -> (if (byId[t.fromId]?.type == AccountType.LIABILITY) "Borçlanma" else "Hesaplar arası") + note(t) }
         )
