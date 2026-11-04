@@ -7,6 +7,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import android.app.Activity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.widget.Toast
 import android.os.SystemClock
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -194,6 +197,62 @@ fun trail(a: Account, byId: Map<Long, Account>): String {
     return parts.joinToString(" › ")
 }
 
+data class KindInfo(val singular: String, val nameHint: String)
+
+fun kindInfo(type: AccountType, group: String?): KindInfo {
+    val byGroup: KindInfo? = when (group) {
+        G_CARD -> KindInfo("Kredi kartı", "Kart adı")
+        G_LOAN -> KindInfo("Kredi", "Kredi adı")
+        G_PRIV -> KindInfo("Özel borç", "Borç adı")
+        "Fatura borçları" -> KindInfo("Fatura borcu", "Fatura adı")
+        G_BANK -> KindInfo("Banka hesabı", "Hesap adı")
+        G_CASH -> KindInfo("Nakit hesabı", "Hesap adı")
+        "Alacaklar" -> KindInfo("Alacak", "Alacak adı")
+        "Yatırım fonları" -> KindInfo("Fon", "Fon adı")
+        "Hisse senetleri" -> KindInfo("Hisse senedi", "Hisse adı")
+        "Kıymetli madenler" -> KindInfo("Kıymetli maden", "Ad")
+        "Diğer varlıklar" -> KindInfo("Varlık", "Varlık adı")
+        "Maaş" -> KindInfo("Maaş kalemi", "Kalem adı")
+        "Kira geliri" -> KindInfo("Kira geliri kalemi", "Kalem adı")
+        "Diğer gelirler" -> KindInfo("Gelir kalemi", "Kalem adı")
+        G_BILLS -> KindInfo("Fatura", "Fatura adı")
+        else -> null
+    }
+    if (byGroup != null) return byGroup
+    if (!group.isNullOrEmpty()) return KindInfo("$group kalemi", "Kalem adı")
+    return when (type) {
+        AccountType.ASSET -> KindInfo("Varlık", "Varlık adı")
+        AccountType.LIABILITY -> KindInfo("Borç", "Borç adı")
+        AccountType.INCOME -> KindInfo("Gelir kalemi", "Kalem adı")
+        AccountType.EXPENSE -> KindInfo("Gider kalemi", "Kalem adı")
+    }
+}
+
+fun addLabel(type: AccountType, group: String?): String = kindInfo(type, group).singular + " ekle"
+
+/** Alt kalem yalnızca gelir ve gider kalemlerinde anlamlıdır (Gıda › Market › Şarküteri gibi). */
+fun canHaveSub(type: AccountType): Boolean = type == AccountType.INCOME || type == AccountType.EXPENSE
+
+/** Notu "(3/12)" ile biten işlemler taksit sayılır. */
+fun instOf(t: Txn): Pair<Int, Int>? {
+    val m = Regex("\\((\\d+)/(\\d+)\\)\\s*$").find(t.note) ?: return null
+    val k = m.groupValues[1].toIntOrNull() ?: return null
+    val n = m.groupValues[2].toIntOrNull() ?: return null
+    return if (n >= 2 && k in 1..n) k to n else null
+}
+
+data class InstFlag(val accent: Color, val badge: String, val chip: Color)
+
+fun installmentFlag(t: Txn, today: Long = LocalDate.now().toEpochDay()): InstFlag? {
+    val inst = instOf(t) ?: return null
+    if (inst.first != inst.second) return null
+    return if (t.date > today) {
+        InstFlag(Color(0xFFFFE7B3), "SON TAKSİT", Color(0xFFE58E00))
+    } else {
+        InstFlag(Color(0xFFD7F0DF), "TAKSİT BİTTİ", Color(0xFF1E8A5E))
+    }
+}
+
 fun favType(accounts: List<Account>, f: Favorite): AccountType {
     val fromT = accounts.firstOrNull { it.id == f.fromId }?.type
     val toT = accounts.firstOrNull { it.id == f.toId }?.type
@@ -231,6 +290,32 @@ fun App(vm: MainVm) {
         }
     }
 
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.openOutputStream(uri)?.use { it.write(vm.exportJson().toByteArray(Charsets.UTF_8)) }
+                Toast.makeText(ctx, "Yedek kaydedildi.", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(ctx, "Yedek kaydedilemedi: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                val text = ctx.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                if (text == null) {
+                    Toast.makeText(ctx, "Dosya okunamadı.", Toast.LENGTH_LONG).show()
+                } else {
+                    vm.importJson(text) { _, msg -> Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show() }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(ctx, "Dosya okunamadı: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    var confirmRestore by remember { mutableStateOf(false) }
+    val saveAllCsv = rememberCsvSaver { txnsToCsv(txns, accounts.associateBy { it.id }) }
     var stoppedAt by remember { mutableStateOf(0L) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { stoppedAt = SystemClock.elapsedRealtime() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
@@ -276,6 +361,9 @@ fun App(vm: MainVm) {
     val activity = ctx as? Activity
     val menu: List<Pair<String, () -> Unit>> = listOf(
         "Güncellemeyi kontrol et" to { screen = Screen.Update },
+        "Verileri yedekle" to { backupLauncher.launch("hesap-defteri-yedek-${LocalDate.now()}.json") },
+        "Yedekten geri yükle" to { confirmRestore = true },
+        "Tüm işlemleri indir (CSV)" to { saveAllCsv("tum-islemler") },
         "Ayarlar" to { screen = Screen.Settings },
         "Uygulama kilidi (PIN)" to { screen = Screen.PinSetup },
         "Kullanım kılavuzu" to { screen = Screen.Info("Kullanım kılavuzu", GUIDE) },
@@ -284,6 +372,21 @@ fun App(vm: MainVm) {
         "Hakkında ve yenilikler" to { screen = Screen.Info("Hakkında", ABOUT) },
         "Çıkış" to { activity?.finish() }
     )
+
+    if (confirmRestore) {
+        AlertDialog(
+            onDismissRequest = { confirmRestore = false },
+            title = { Text("Yedekten geri yüklensin mi?") },
+            text = { Text("Şu anki tüm veriler silinip yedekteki verilerle değiştirilecek.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRestore = false
+                    restoreLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
+                }) { Text("Devam") }
+            },
+            dismissButton = { TextButton(onClick = { confirmRestore = false }) { Text("Vazgeç") } }
+        )
+    }
 
     when (val s = screen) {
         Screen.Home -> HomeScreen(
@@ -408,9 +511,7 @@ fun App(vm: MainVm) {
         Screen.Settings -> SettingsScreen(
             onBack = { goBack() },
             onHome = { screen = Screen.Home },
-            onReset = { vm.resetAll() },
-            onExport = { vm.exportJson() },
-            onImport = { text, done -> vm.importJson(text, done) }
+            onReset = { vm.resetAll() }
         )
         Screen.PinSetup -> PinSetupScreen(onBack = { goBack() }, onHome = { screen = Screen.Home })
         is Screen.Info -> InfoScreen(s.title, s.body, onBack = { goBack() }, onHome = { screen = Screen.Home })
@@ -507,9 +608,9 @@ fun HomeScreen(
                         TypeCard(AccountType.INCOME, total(AccountType.INCOME), { onOpen(AccountType.INCOME) }, { onAdd(AccountType.INCOME) }, Modifier.weight(1f))
                         TypeCard(AccountType.EXPENSE, total(AccountType.EXPENSE), { onOpen(AccountType.EXPENSE) }, { onAdd(AccountType.EXPENSE) }, Modifier.weight(1f))
                     }
-                    StatusCard(accounts, txns)
                     FavoritesEntry(onOpenFavs)
                     DailyCard(accounts, txns, onEditTxn)
+                    StatusEntry(accounts, txns)
                 }
                 if (menuOpen) SideMenu(menu) { menuOpen = false }
             }
@@ -646,7 +747,17 @@ fun CategoryScreen(
                         HorizontalDivider()
                     }
                 }
-                AddPanel("Yeni hesap ekle", typeColor(type), onAddAccount)
+                AddPanel(addLabel(type, null), typeColor(type), onAddAccount)
+                CsvPanel("${type.label} işlemlerini indir (CSV)", type.label) {
+                    val idsT = accounts.filter { it.type == type }.map { it.id }.toSet()
+                    val st = month.atDay(1).toEpochDay()
+                    val en = month.atEndOfMonth().toEpochDay()
+                    val per = type == AccountType.INCOME || type == AccountType.EXPENSE
+                    txnsToCsv(
+                        txns.filter { (it.fromId in idsT || it.toId in idsT) && (!per || it.date in st..en) },
+                        accounts.associateBy { it.id }
+                    )
+                }
             }
         }
     }
@@ -706,14 +817,17 @@ fun TxnLine(
     sign: Int,
     zebra: Boolean,
     onDelete: (() -> Unit)?,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    accent: Color? = null,
+    badge: String? = null,
+    badgeColor: Color = Color.Gray
 ) {
     val color = if (sign > 0) Color(0xFF1E8A5E) else if (sign < 0) Color(0xFFB3261E) else Color(0xFF555555)
     val prefix = if (sign > 0) "+" else if (sign < 0) "−" else ""
     Row(
         Modifier
             .fillMaxWidth()
-            .background(if (zebra) Color(0xFFF6F6F6) else Color.Transparent)
+            .background(accent ?: (if (zebra) Color(0xFFF6F6F6) else Color.Transparent))
             .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -721,7 +835,22 @@ fun TxnLine(
         SignBadge(sign)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    title,
+                    Modifier.weight(1f, fill = false),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (badge != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.background(badgeColor, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                        Text(badge, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
             Text(subtitle, fontSize = 11.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
@@ -744,8 +873,14 @@ fun TxnTable(
     onDelete: ((Txn) -> Unit)?
 ) {
     var pendingDelete by remember { mutableStateOf<Txn?>(null) }
+    val today = remember { LocalDate.now().toEpochDay() }
     WhiteBox {
-        SectionHeader(title)
+        Box(Modifier.fillMaxWidth()) {
+            SectionHeader(title)
+            if (list.isNotEmpty()) {
+                CsvLink(title, Modifier.align(Alignment.CenterEnd)) { txnsToCsv(list, byId) }
+            }
+        }
         if (list.isEmpty()) {
             Text("Bu dönemde işlem yok.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
         }
@@ -753,11 +888,13 @@ fun TxnTable(
             val delta = if (ids == null) 0L else txnDelta(t, byId, ids)
             val sign = if (delta > 0) 1 else if (delta < 0) -1 else 0
             val sub = dayText(t.date) + if (t.note.isNotBlank()) " · ${t.note}" else ""
+            val fl = installmentFlag(t, today)
             TxnLine(
                 "${byId[t.fromId]?.name ?: "?"} → ${byId[t.toId]?.name ?: "?"}",
                 sub, t.cents, sign, i % 2 == 1,
                 if (onDelete != null) ({ pendingDelete = t }) else null,
-                if (onEdit != null) ({ onEdit(t) }) else null
+                if (onEdit != null) ({ onEdit(t) }) else null,
+                fl?.accent, fl?.badge, fl?.chip ?: Color.Gray
             )
             HorizontalDivider(color = Color(0xFFE3E3E3))
         }
@@ -819,7 +956,6 @@ fun GroupScreen(
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TopBar("$group (${money(total)})", onBack, onHome, onEdit = { editMode = !editMode; message = null })
-            Breadcrumb("${type.label} > $group")
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -850,7 +986,7 @@ fun GroupScreen(
                 }
                 message?.let { Text(it, color = NegativeRed) }
                 WhiteBox {
-                    SectionHeader("Hesaplar ve alt kalemler")
+                    SectionHeader(if (canHaveSub(type)) "Kalemler ve alt kalemler" else "Hesaplar")
                     tree.forEach { (a, depth) ->
                         val v = roll[a.id] ?: 0L
                         val rowCard = if (a.type == AccountType.LIABILITY && a.groupName == G_CARD && a.limitCents != null) {
@@ -894,8 +1030,10 @@ fun GroupScreen(
                                     Icon(Icons.Default.Delete, contentDescription = "Sil", modifier = Modifier.size(20.dp))
                                 }
                             } else {
-                                IconButton(onClick = { onAddAccount(a) }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Default.Add, contentDescription = "Alt kalem ekle", tint = GreenText, modifier = Modifier.size(20.dp))
+                                if (canHaveSub(type)) {
+                                    IconButton(onClick = { onAddAccount(a) }, modifier = Modifier.size(36.dp)) {
+                                        Icon(Icons.Default.Add, contentDescription = "Alt kalem ekle", tint = GreenText, modifier = Modifier.size(20.dp))
+                                    }
                                 }
                                 Text("›", color = Color.Gray, fontSize = 20.sp)
                             }
@@ -903,7 +1041,7 @@ fun GroupScreen(
                         HorizontalDivider()
                     }
                     Box(Modifier.padding(10.dp)) {
-                        AddPanel("Yeni hesap ekle", typeColor(type)) { onAddAccount(null) }
+                        AddPanel(addLabel(type, group), typeColor(type)) { onAddAccount(null) }
                     }
                 }
                 TxnTable("İşlemler", list, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
@@ -1053,6 +1191,17 @@ fun AccountDetailScreen(
                 if (!isCard) PeriodPill(month, onMonth)
                 if (info != null) {
                     CardSummary(info) { cardDialog = true }
+                    CsvPanel("Kart hareketlerini indir (CSV)", acc?.name ?: "kart") {
+                        val lc = info.lastCutoff
+                        val pc = info.prevCutoff
+                        if (lc != null && pc != null) {
+                            val l = lc.toEpochDay()
+                            val p = pc.toEpochDay()
+                            txnsToCsv(list, byId, "Dönem") { t ->
+                                if (t.date > l) "Güncel dönem (ekstreye dahil değil)" else if (t.date > p) "Son ekstre" else "Önceki hareketler"
+                            }
+                        } else txnsToCsv(list, byId)
+                    }
                 } else {
                     WhiteBox {
                         Text(
@@ -1072,7 +1221,7 @@ fun AccountDetailScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Yeni işlem gir")
                 }
-                WhiteBox {
+                if (canHaveSub(type)) WhiteBox {
                     SectionHeader("Alt kalemler")
                     if (kids.isEmpty()) {
                         Text("Henüz alt kalem yok.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
@@ -1090,7 +1239,7 @@ fun AccountDetailScreen(
                         HorizontalDivider()
                     }
                     Box(Modifier.padding(10.dp)) {
-                        AddPanel("Alt kalem ekle", typeColor(type), onAddSub)
+                        AddPanel("${acc?.name ?: "Kalem"} altına kalem ekle", typeColor(type), onAddSub)
                     }
                 }
                 val lastC = info?.lastCutoff
@@ -1315,7 +1464,7 @@ fun HierarchyPickerPane(
                 when (node) {
                     null -> {
                         val groups = ofType.map { it.groupName }.distinct().sortedBy { if (it == presetGroup) 0 else 1 }
-                        if (groups.isEmpty()) NewAccountButton { onNew("", null) }
+                        if (groups.isEmpty()) NewAccountButton(addLabel(type, null)) { onNew("", null) }
                         groups.forEach { g ->
                             val sum = ofType.filter { it.groupName == g }.sumOf { bal[it.id] ?: 0L }
                             PickRow(g, sum, true, null) { path = listOf(PickNode.G(g)) }
@@ -1323,14 +1472,14 @@ fun HierarchyPickerPane(
                     }
                     is PickNode.G -> {
                         val list = ofType.filter { it.groupName == node.name && it.parentId == null }
-                        if (list.isEmpty()) NewAccountButton { onNew(node.name, null) }
+                        if (list.isEmpty()) NewAccountButton(addLabel(type, node.name)) { onNew(node.name, null) }
                         list.forEach { a ->
                             val hasKids = ofType.any { it.parentId == a.id }
-                            PickRow(a.name, roll[a.id] ?: 0L, hasKids, { onNew(a.groupName, a) }) {
+                            PickRow(a.name, roll[a.id] ?: 0L, hasKids, if (canHaveSub(type)) ({ onNew(a.groupName, a) }) else null) {
                                 if (hasKids) path = path + PickNode.A(a.id) else onPick(a)
                             }
                         }
-                        if (list.isNotEmpty()) NewAccountButton { onNew(node.name, null) }
+                        if (list.isNotEmpty()) NewAccountButton(addLabel(type, node.name)) { onNew(node.name, null) }
                     }
                     is PickNode.A -> {
                         val parent = accounts.firstOrNull { it.id == node.id }
@@ -1346,11 +1495,11 @@ fun HierarchyPickerPane(
                             }
                             ofType.filter { it.parentId == parent.id }.forEach { k ->
                                 val hasKids = ofType.any { it.parentId == k.id }
-                                PickRow(k.name, roll[k.id] ?: 0L, hasKids, { onNew(k.groupName, k) }) {
+                                PickRow(k.name, roll[k.id] ?: 0L, hasKids, if (canHaveSub(type)) ({ onNew(k.groupName, k) }) else null) {
                                     if (hasKids) path = path + PickNode.A(k.id) else onPick(k)
                                 }
                             }
-                            NewAccountButton("Alt Kalem Ekle") { onNew(parent.groupName, parent) }
+                            NewAccountButton("${parent.name} altına kalem ekle") { onNew(parent.groupName, parent) }
                         }
                     }
                 }
@@ -1566,7 +1715,7 @@ fun AddTxnScreen(
                                             cents / n + (if (k == 0) cents % n else 0L)
                                         } else cents
                                         val label = if (plan == Plan.SINGLE) note.trim()
-                                        else listOf(note.trim(), "(${k + 1}/$n)").filter { it.isNotEmpty() }.joinToString(" ")
+                                        else listOf(note.trim(), if (plan == Plan.INSTALLMENT) "(${k + 1}/$n)" else "Tekrar ${k + 1}/$n").filter { it.isNotEmpty() }.joinToString(" ")
                                         Txn(
                                             cents = c,
                                             date = per.shift(date, k.toLong()).toEpochDay(),
@@ -1631,12 +1780,8 @@ fun AddAccountScreen(
 
     AppBackground {
         Column(Modifier.fillMaxSize()) {
-            TopBar(if (parent != null) "Yeni alt kalem" else "Yeni hesap", onBack, onHome)
-            if (parent != null) {
-                Breadcrumb("${type.label} › ${trail(parent, byId)} › ${parent.name}")
-            } else if (fixedGroup.isNotEmpty()) {
-                Breadcrumb("${type.label} › $fixedGroup")
-            }
+            val kind = kindInfo(type, if (fixedGroup.isNotEmpty()) fixedGroup else chosen)
+            TopBar(if (parent != null) "${parent.name} altına kalem ekle" else addLabel(type, if (fixedGroup.isNotEmpty()) fixedGroup else chosen), onBack, onHome)
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1645,7 +1790,7 @@ fun AddAccountScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CompactField(
                             name, { name = it; error = null },
-                            if (parent != null) "Alt kalem adı" else "Hesap adı",
+                            if (parent != null) "Alt kalem adı" else kind.nameHint,
                             flat = true
                         )
                         if (fixedGroup.isEmpty()) {
@@ -1726,7 +1871,8 @@ fun DaySection(
         Text("Tutar", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
     }
     list.forEachIndexed { i, t ->
-        TxnLine(head(t), sub(t), t.cents, sign, i % 2 == 1, null, { onEdit(t) })
+        val fl = installmentFlag(t)
+        TxnLine(head(t), sub(t), t.cents, sign, i % 2 == 1, null, { onEdit(t) }, fl?.accent, fl?.badge, fl?.chip ?: Color.Gray)
         HorizontalDivider(color = Color(0xFFE3E3E3))
     }
 }
@@ -1777,7 +1923,10 @@ fun DailyCard(accounts: List<Account>, txns: List<Txn>, onEdit: (Txn) -> Unit) {
         if (dayTxns.isEmpty()) {
             Text("Bu günde işlem yok.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
         } else {
-            Text("Düzenlemek için bir satıra dokun.", Modifier.padding(horizontal = 12.dp), fontSize = 10.sp, color = Color.Gray)
+            Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Düzenlemek için bir satıra dokun.", Modifier.weight(1f), fontSize = 10.sp, color = Color.Gray)
+                CsvLink("günlük $day") { txnsToCsv(dayTxns, byId) }
+            }
         }
         DaySection(
             "Gelirler", green, Color(0xFFE6F4EC), incomeL, 1, true, onEdit,

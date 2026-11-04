@@ -48,4 +48,8 @@ Bu sürümde:
 • İşlem düzenleme: işlem satırına dokun
 • Yedek al ve yedekten geri yükle (Ayarlar)
 • Genel durum kartı: kâr ve nakit akışı, yıllık/aylık/haftalık/günlük
-• PIN kilidi arka plandan 30 saniye sonra dönüşte yeniden sorar"""
+• PIN kilidi arka plandan 30 saniye sonra dönüşte yeniden sorar
+• Yan menüden yedekleme, geri yükleme ve tüm işlemleri CSV olarak indirme
+• Listelerde ⤓ CSV ile o listeyi dosya olarak kaydetme
+• Kredi kartında son taksit satırı renkli gösterilir
+• Fatura Giderleri altında hazır kalemler: Elektrik, Su, Doğalgaz, İnternet, Cep telefonu"""

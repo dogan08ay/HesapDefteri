@@ -123,14 +123,31 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
-@Database(entities = [Account::class, Txn::class, Favorite::class], version = 3, exportSchema = false)
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        for (n in listOf("Elektrik", "Su", "Doğalgaz", "İnternet", "Cep telefonu")) {
+            db.execSQL(
+                "INSERT INTO accounts (name, type, groupName, parentId, limitCents, cutoffDay) " +
+                    "SELECT '$n', 'EXPENSE', 'Fatura Giderleri', NULL, NULL, NULL " +
+                    "WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE groupName = 'Fatura Giderleri' AND name = '$n') " +
+                    "AND EXISTS (SELECT 1 FROM accounts WHERE groupName = 'Fatura Giderleri')"
+            )
+        }
+        db.execSQL(
+            "DELETE FROM accounts WHERE name = 'Elektrik, su, doğalgaz' AND groupName = 'Fatura Giderleri' " +
+                "AND id NOT IN (SELECT fromId FROM transactions) AND id NOT IN (SELECT toId FROM transactions)"
+        )
+    }
+}
+
+@Database(entities = [Account::class, Txn::class, Favorite::class], version = 4, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun dao(): AppDao
 
     companion object {
         fun build(ctx: Context): AppDb =
             Room.databaseBuilder(ctx.applicationContext, AppDb::class.java, "hesap.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

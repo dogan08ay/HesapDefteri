@@ -2,6 +2,10 @@
 
 package com.dogan.hesapdefteri
 
+import androidx.compose.ui.draw.rotate
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.Icons
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -762,6 +766,14 @@ fun ChartScreen(
                                 Text(money(total), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = totalColor)
                             }
                         }
+                        CsvPanel("Kategori tablosunu indir (CSV)", (group ?: shownType.label) + " kategori") {
+                            val sbx = StringBuilder("Kategori;Tutar (TL);Yüzde\r\n")
+                            shown.forEach {
+                                sbx.append(csvEscape(it.name)).append(';').append(amountCsv(it.cents)).append(';')
+                                    .append(String.format(TR, "%.2f", it.cents * 100.0 / total)).append("\r\n")
+                            }
+                            sbx.toString()
+                        }
                         Text(
                             if (group == null && drill == null) "Satıra dokununca grafikte vurgulanır, › ile alt kalemlere inersin."
                             else "Satıra dokununca grafikte vurgulanır.",
@@ -773,4 +785,25 @@ fun ChartScreen(
             }
         }
     }
+}
+
+/** Ana sayfada kapalı başlık paneli; dokununca genel durum (yıllık/aylık/haftalık/günlük) açılır. */
+@Composable
+fun StatusEntry(accounts: List<Account>, txns: List<Txn>) {
+    var open by remember { mutableStateOf(false) }
+    WhiteBox {
+        Row(
+            Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StatsIcon(Modifier.size(30.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Genel durum", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Kâr ve nakit akışı · yıllık, aylık, haftalık, günlük", fontSize = 10.sp, color = Color.Gray)
+            }
+            Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.rotate(if (open) 180f else 0f))
+        }
+    }
+    if (open) StatusCard(accounts, txns)
 }

@@ -57,7 +57,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             addAll(add(e, "Kira", "Ev kirası"))
             addAll(add(e, "Ulaşım", "Yakıt ve ulaşım"))
             addAll(add(e, "Sağlık", "Sağlık"))
-            addAll(add(e, "Fatura Giderleri", "Elektrik, su, doğalgaz"))
+            addAll(add(e, "Fatura Giderleri", "Elektrik", "Su", "Doğalgaz", "İnternet", "Cep telefonu"))
             addAll(add(e, "Diğer", "Diğer gider"))
         }
         all.forEach { dao.insertAccount(it) }

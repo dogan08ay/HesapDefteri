@@ -2,6 +2,18 @@
 
 package com.dogan.hesapdefteri
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,8 +58,9 @@ object PinStore {
             .joinToString("") { "%02x".format(it) }
 
     fun isSet(ctx: Context): Boolean = prefs(ctx).contains("h")
-    fun set(ctx: Context, pin: String) { prefs(ctx).edit().putString("h", hash(pin)).apply() }
-    fun clear(ctx: Context) { prefs(ctx).edit().remove("h").apply() }
+    fun set(ctx: Context, pin: String) { prefs(ctx).edit().putString("h", hash(pin)).putInt("len", pin.length).apply() }
+    fun length(ctx: Context): Int = prefs(ctx).getInt("len", 0)
+    fun clear(ctx: Context) { prefs(ctx).edit().remove("h").remove("len").apply() }
     fun check(ctx: Context, pin: String): Boolean = prefs(ctx).getString("h", null) == hash(pin)
 }
 
@@ -64,43 +77,8 @@ fun InfoScreen(title: String, body: String, onBack: () -> Unit, onHome: () -> Un
 }
 
 @Composable
-fun SettingsScreen(
-    onBack: () -> Unit,
-    onHome: () -> Unit,
-    onReset: () -> Unit,
-    onExport: () -> String,
-    onImport: (String, (Boolean, String) -> Unit) -> Unit
-) {
-    val ctx = LocalContext.current
+fun SettingsScreen(onBack: () -> Unit, onHome: () -> Unit, onReset: () -> Unit) {
     var confirm by remember { mutableStateOf(false) }
-    var confirmImport by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) {
-            try {
-                ctx.contentResolver.openOutputStream(uri)?.use { it.write(onExport().toByteArray(Charsets.UTF_8)) }
-                message = "Yedek kaydedildi."
-            } catch (e: Exception) {
-                message = "Yedek kaydedilemedi: ${e.message}"
-            }
-        }
-    }
-    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            try {
-                val text = ctx.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-                if (text == null) {
-                    message = "Dosya okunamadı."
-                } else {
-                    onImport(text) { ok, msg -> message = msg }
-                }
-            } catch (e: Exception) {
-                message = "Dosya okunamadı: ${e.message}"
-            }
-        }
-    }
-
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TopBar("Ayarlar", onBack, onHome)
@@ -110,26 +88,11 @@ fun SettingsScreen(
             ) {
                 WhiteBox {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Yedekleme", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text("Veriler", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Veriler yalnızca bu telefonda durur. Uygulamayı silersen ya da telefonu değiştirirsen kaybolur, bu yüzden arada yedek al.",
+                            "Tüm hesaplar, işlemler ve kısayollar bu cihazda saklanır. Yedek almak için yan menüdeki “Verileri yedekle”yi kullan.",
                             fontSize = 12.sp
                         )
-                        Button(
-                            onClick = { saveLauncher.launch("hesap-defteri-yedek-${LocalDate.now()}.json") },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Yedek al") }
-                        OutlinedButton(
-                            onClick = { confirmImport = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Yedekten geri yükle") }
-                        message?.let { Text(it, fontSize = 12.sp, color = GreenText) }
-                    }
-                }
-                WhiteBox {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Veriler", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Text("Tüm hesaplar, işlemler ve kısayollar bu cihazda saklanır.", fontSize = 12.sp)
                         Button(
                             onClick = { confirm = true },
                             colors = ButtonDefaults.buttonColors(containerColor = typeColor(AccountType.EXPENSE))
@@ -148,52 +111,81 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Vazgeç") } }
         )
     }
-    if (confirmImport) {
-        AlertDialog(
-            onDismissRequest = { confirmImport = false },
-            title = { Text("Yedekten geri yüklensin mi?") },
-            text = { Text("Şu anki tüm veriler silinip yedekteki verilerle değiştirilecek.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmImport = false
-                    openLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
-                }) { Text("Devam") }
-            },
-            dismissButton = { TextButton(onClick = { confirmImport = false }) { Text("Vazgeç") } }
-        )
+}
+
+@Composable
+fun PinKey(label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(76.dp).clip(CircleShape).background(Color.White).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, fontSize = 26.sp, fontWeight = FontWeight.Medium, color = Color(0xFF222222))
     }
 }
 
 @Composable
 fun LockScreen(onUnlock: () -> Unit) {
     val ctx = LocalContext.current
+    val savedLen = remember { PinStore.length(ctx) }
+    val maxLen = if (savedLen > 0) savedLen else 8
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+
+    fun press(d: String) {
+        if (pin.length >= maxLen) return
+        error = false
+        val next = pin + d
+        pin = next
+        if (savedLen > 0) {
+            if (next.length == savedLen) {
+                if (PinStore.check(ctx, next)) onUnlock() else { error = true; pin = "" }
+            }
+        } else {
+            if (next.length >= 4 && PinStore.check(ctx, next)) onUnlock()
+            else if (next.length >= maxLen) { error = true; pin = "" }
+        }
+    }
+    fun back() {
+        if (pin.isNotEmpty()) { pin = pin.dropLast(1); error = false }
+    }
+
     AppBackground {
-        Column(Modifier.fillMaxSize()) {
-            TopBar("Hesap Defteri", null, null)
-            Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                WhiteBox {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("PIN kodunu gir", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        OutlinedTextField(
-                            value = pin,
-                            onValueChange = { pin = it; error = false },
-                            label = { Text("PIN") },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                            isError = error,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (error) Text("PIN hatalı.", color = MaterialTheme.colorScheme.error)
-                        Button(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { if (PinStore.check(ctx, pin)) onUnlock() else error = true }
-                        ) { Text("Aç") }
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.weight(1f))
+            LogoMark(Modifier.size(76.dp))
+            Spacer(Modifier.height(10.dp))
+            Text("Hesap Defteri", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = GreenText)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (error) "PIN hatalı, tekrar dene" else "PIN kodunu gir",
+                fontSize = 13.sp,
+                color = if (error) NegativeRed else Color.Gray
+            )
+            Spacer(Modifier.height(22.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                val dots = if (savedLen > 0) savedLen else maxOf(4, pin.length)
+                for (i in 0 until dots) {
+                    Box(
+                        Modifier.size(14.dp).clip(CircleShape)
+                            .background(if (i < pin.length) GreenText else Color(0x33000000))
+                    )
+                }
+            }
+            Spacer(Modifier.weight(0.7f))
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "⌫")).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                        row.forEach { key ->
+                            if (key.isEmpty()) Spacer(Modifier.size(76.dp))
+                            else PinKey(key) { if (key == "⌫") back() else press(key) }
+                        }
                     }
                 }
             }
+            Spacer(Modifier.height(32.dp))
         }
     }
 }

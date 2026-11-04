@@ -2,6 +2,9 @@
 
 package com.dogan.hesapdefteri
 
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,7 +28,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
@@ -53,7 +55,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -114,51 +115,66 @@ fun AppBackground(content: @Composable () -> Unit) {
     ) { content() }
 }
 
+private const val LIRA_PATH = "M46.27 45.85 45.44 44.06 49.1 42.35V35H54.77V39.69L57.53 38.39L58.38 40.2L54.77 41.88V44.14L57.56 42.82L58.41 44.64L54.77 46.33V52.71Q56.04 52.71 57.95 50.99Q59.85 49.26 59.85 45.98H65.56Q65.56 48.47 64.81 50.42Q64.05 52.37 62.51 53.86Q60.74 55.57 58.26 56.29Q55.79 57 53.05 57H49.1V48.97L46.3 50.28L45.47 48.5L49.1 46.8V44.53Z"
+
 @Composable
 fun LogoMark(modifier: Modifier = Modifier) {
+    val lira = remember { PathParser().parsePathString(LIRA_PATH).toPath() }
     Canvas(modifier) {
         val k = size.width / 108f
-        fun pt(x: Float, y: Float) = Offset(x * k, y * k)
         drawRoundRect(
-            brush = Brush.linearGradient(listOf(Color(0xFF22B57C), Color(0xFF0A3D2A)), start = Offset(0f, 0f), end = Offset(size.width, size.height)),
+            brush = Brush.linearGradient(
+                listOf(Color(0xFF1AA67E), Color(0xFF08392E)),
+                start = Offset(0f, 0f),
+                end = Offset(size.width, size.height)
+            ),
             cornerRadius = CornerRadius(24f * k, 24f * k)
         )
-        // defter sayfaları
-        val left = Path()
-        left.moveTo(54f * k, 78f * k)
-        left.cubicTo(45f * k, 72f * k, 35f * k, 70f * k, 24f * k, 72f * k)
-        left.lineTo(24f * k, 52f * k)
-        left.cubicTo(35f * k, 50f * k, 45f * k, 52f * k, 54f * k, 58f * k)
-        left.close()
-        drawPath(left, Color(0xFFE6DBBC))
-        val right = Path()
-        right.moveTo(54f * k, 78f * k)
-        right.cubicTo(63f * k, 72f * k, 73f * k, 70f * k, 84f * k, 72f * k)
-        right.lineTo(84f * k, 52f * k)
-        right.cubicTo(73f * k, 50f * k, 63f * k, 52f * k, 54f * k, 58f * k)
-        right.close()
-        drawPath(right, Color(0xFFF8F1DE))
-        // altın para
-        drawCircle(
-            brush = Brush.linearGradient(listOf(Color(0xFFFFE9A0), Color(0xFFE5A91A)), start = pt(36f, 20f), end = pt(72f, 56f)),
-            radius = 18f * k,
-            center = pt(54f, 38f)
-        )
-        drawCircle(color = Color(0xFFB57A00), radius = 18f * k, center = pt(54f, 38f), style = Stroke(width = 1.6f * k))
-        drawCircle(color = Color(0xCCFFF4C8), radius = 13.5f * k, center = pt(54f, 38f), style = Stroke(width = 1.2f * k))
-        // yükselen ok
-        val line = Path()
-        line.moveTo(45f * k, 44f * k)
-        line.lineTo(51f * k, 38f * k)
-        line.lineTo(56f * k, 42f * k)
-        line.lineTo(63f * k, 34f * k)
-        drawPath(line, Color(0xFF7A4E00), style = Stroke(width = 3f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        val head = Path()
-        head.moveTo(67.5f * k, 30f * k)
-        head.lineTo(60.5f * k, 31.5f * k)
-        head.lineTo(66f * k, 37.5f * k)
-        head.close()
-        drawPath(head, Color(0xFF7A4E00))
+        withTransform({
+            scale(k, k, Offset(0f, 0f))
+            scale(0.88f, 0.88f, Offset(54f, 54f))
+        }) {
+            drawRoundRect(color = Color(0x40000000), topLeft = Offset(30f, 20f), size = Size(50f, 74f), cornerRadius = CornerRadius(5f, 5f))
+            drawRoundRect(color = Color(0xFFF6EED8), topLeft = Offset(33f, 19.5f), size = Size(50f, 74f), cornerRadius = CornerRadius(5f, 5f))
+            drawRoundRect(
+                brush = Brush.linearGradient(
+                    listOf(Color(0xFFF7C95A), Color(0xFFD48A14)),
+                    start = Offset(30f, 17f),
+                    end = Offset(80f, 91f)
+                ),
+                topLeft = Offset(30f, 17f),
+                size = Size(50f, 74f),
+                cornerRadius = CornerRadius(5f, 5f)
+            )
+            drawRoundRect(color = Color(0xFFA9660B), topLeft = Offset(30f, 17f), size = Size(9f, 74f), cornerRadius = CornerRadius(5f, 5f))
+            drawRect(color = Color(0xFFA9660B), topLeft = Offset(34f, 17f), size = Size(5f, 74f))
+            drawRect(color = Color(0xFF6B3E06), topLeft = Offset(69f, 17f), size = Size(3.5f, 74f))
+            drawLine(color = Color(0x96FFE6A6), start = Offset(42f, 22f), end = Offset(42f, 86f), strokeWidth = 0.7f)
+            withTransform({ translate(0.6f, 0.8f) }) { drawPath(lira, Color(0xD2FFEEBB)) }
+            drawPath(lira, Color(0xFF4A2A00))
+            drawRect(color = Color(0xFF4A2A00), topLeft = Offset(48.5f, 73f), size = Size(3.2f, 5f))
+            drawRect(color = Color(0xFF4A2A00), topLeft = Offset(53.3f, 70f), size = Size(3.2f, 8f))
+            drawRect(color = Color(0xFF4A2A00), topLeft = Offset(58.1f, 66f), size = Size(3.2f, 12f))
+            val ribbon = Path()
+            ribbon.moveTo(60f, 91f)
+            ribbon.lineTo(66f, 91f)
+            ribbon.lineTo(66f, 101f)
+            ribbon.lineTo(63f, 98f)
+            ribbon.lineTo(60f, 101f)
+            ribbon.close()
+            drawPath(ribbon, Color(0xFFD63B3B))
+        }
+    }
+}
+
+@Composable
+fun StatsIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val k = size.width / 28f
+        val c = Color(0xFF333333)
+        drawRoundRect(color = c, topLeft = Offset(3f * k, 16f * k), size = Size(5f * k, 9f * k), cornerRadius = CornerRadius(1f * k, 1f * k))
+        drawRoundRect(color = c, topLeft = Offset(11.5f * k, 11f * k), size = Size(5f * k, 14f * k), cornerRadius = CornerRadius(1f * k, 1f * k))
+        drawRoundRect(color = c, topLeft = Offset(20f * k, 5f * k), size = Size(5f * k, 20f * k), cornerRadius = CornerRadius(1f * k, 1f * k))
     }
 }
 
