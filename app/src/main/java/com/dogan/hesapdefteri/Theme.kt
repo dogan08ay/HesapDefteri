@@ -409,7 +409,7 @@ fun TypeCard(
     val density = LocalDensity.current
     val cut = 44.dp
     val outer = remember(density) { with(density) { cardShape(12.dp.toPx(), cut.toPx()) } }
-    val inner = remember(density) { with(density) { cardShape(10.dp.toPx(), (cut - 4.dp).toPx()) } }
+    val innerShape = remember(density) { with(density) { cardShape(10.dp.toPx(), (cut - 4.dp).toPx()) } }
     val base = typeColor(type)
     Box(modifier.height(146.dp)) {
         Box(
@@ -418,7 +418,7 @@ fun TypeCard(
                 .shadow(6.dp, outer)
                 .background(Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFF9E9E9E))), outer)
                 .padding(3.dp)
-                .clip(inner)
+                .clip(innerShape)
                 .background(Brush.linearGradient(listOf(Color.White, Color(0xFFDADADA))))
                 .clickable(onClick = onOpen)
         ) {
@@ -464,7 +464,6 @@ fun TypeCard(
                         end = Offset(0f, size.height)
                     )
                 )
-                // iç kabartma
                 val inset = 5.dp.toPx()
                 val innerPath = Path()
                 innerPath.moveTo(size.width - inset, inset * 1.6f)
@@ -475,4 +474,184 @@ fun TypeCard(
                     innerPath,
                     Brush.linearGradient(
                         listOf(Color(0xFFEDEDED), Color(0xFFCFCFCF)),
-                        start = Offset(
+                        start = Offset(size.width, 0f),
+                        end = Offset(0f, size.height)
+                    )
+                )
+                drawPath(tri, Color(0xFF8C8C8C), style = Stroke(width = 2f))
+                val c = Offset(size.width * 0.68f, size.height * 0.68f)
+                val r = 6.dp.toPx()
+                val sw = 3.6.dp.toPx()
+                val shift = Offset(1.5.dp.toPx(), 1.5.dp.toPx())
+                drawLine(Color.White, c - Offset(r, 0f) + shift, c + Offset(r, 0f) + shift, strokeWidth = sw, cap = StrokeCap.Round)
+                drawLine(Color.White, c - Offset(0f, r) + shift, c + Offset(0f, r) + shift, strokeWidth = sw, cap = StrokeCap.Round)
+                drawLine(Color(0xFF4A4A4A), c - Offset(r, 0f), c + Offset(r, 0f), strokeWidth = sw, cap = StrokeCap.Round)
+                drawLine(Color(0xFF4A4A4A), c - Offset(0f, r), c + Offset(0f, r), strokeWidth = sw, cap = StrokeCap.Round)
+            }
+        }
+    }
+}
+
+@Composable
+fun PeriodPill(month: YearMonth, onMonth: (YearMonth) -> Unit) {
+    val f1 = DateTimeFormatter.ofPattern("dd MMM", TR)
+    val f2 = DateTimeFormatter.ofPattern("dd MMM yyyy", TR)
+    val label = month.atDay(1).format(f1) + " – " + month.atEndOfMonth().format(f2)
+    val shape = RoundedCornerShape(24.dp)
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 22.dp)
+                .shadow(3.dp, shape)
+                .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFEDEDED))), shape)
+                .border(BorderStroke(1.5.dp, SilverBorder), shape)
+                .padding(end = 10.dp)
+                .heightIn(min = 38.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.width(34.dp))
+            Text(
+                "‹",
+                Modifier.clickable { onMonth(month.minusMonths(1)) }.padding(horizontal = 12.dp, vertical = 2.dp),
+                fontSize = 22.sp,
+                color = GreenText
+            )
+            Text(
+                label,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                color = GreenText,
+                fontSize = 12.sp
+            )
+            Text(
+                "›",
+                Modifier.clickable { onMonth(month.plusMonths(1)) }.padding(horizontal = 12.dp, vertical = 2.dp),
+                fontSize = 22.sp,
+                color = GreenText
+            )
+        }
+        CalendarBadge(Modifier.align(Alignment.CenterStart).size(46.dp))
+    }
+}
+
+@Composable
+fun CompactField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    textAlign: TextAlign = TextAlign.Start,
+    suffix: String? = null,
+    flat: Boolean = false
+) {
+    val shape = RoundedCornerShape(10.dp)
+    val base = if (flat) Modifier.background(Color(0xFFF3F3F3), shape) else Modifier.shadow(3.dp, shape).background(Color.White, shape)
+    Row(
+        Modifier.fillMaxWidth().then(base).padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(placeholder, Modifier.fillMaxWidth(), color = Color.Gray, fontSize = 14.sp, textAlign = textAlign)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 14.sp, color = Color.Black, textAlign = textAlign),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        if (suffix != null) {
+            Spacer(Modifier.width(6.dp))
+            Text(suffix, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+fun AddPanel(text: String, color: Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, shape)
+            .background(Brush.horizontalGradient(listOf(color, color.copy(alpha = 0.72f))), shape)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    }
+}
+
+@Composable
+fun ChartIconButton(pie: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(52.dp)
+            .shadow(3.dp, RoundedCornerShape(8.dp))
+            .background(Color.White, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.size(30.dp)) {
+            if (pie) {
+                drawArc(color = PALETTE[0], startAngle = -90f, sweepAngle = 200f, useCenter = true)
+                drawArc(color = PALETTE[1], startAngle = 110f, sweepAngle = 100f, useCenter = true)
+                drawArc(color = PALETTE[2], startAngle = 210f, sweepAngle = 60f, useCenter = true)
+            } else {
+                val w = size.width / 5f
+                listOf(0.5f, 1f, 0.7f).forEachIndexed { i, h ->
+                    val barH = size.height * h
+                    drawRect(
+                        color = PALETTE[i],
+                        topLeft = Offset(w * (0.5f + i * 1.6f), size.height - barH),
+                        size = Size(w, barH)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PieChart(slices: List<Pair<String, Long>>) {
+    val total = slices.sumOf { it.second }.toFloat()
+    if (total == 0f) return
+    Canvas(Modifier.size(220.dp)) {
+        var start = -90f
+        slices.forEachIndexed { i, s ->
+            val sweep = s.second / total * 360f
+            drawArc(
+                color = PALETTE[i % PALETTE.size],
+                startAngle = start,
+                sweepAngle = sweep,
+                useCenter = true
+            )
+            start += sweep
+        }
+    }
+}
+
+@Composable
+fun BarChart(slices: List<Pair<String, Long>>) {
+    val max = slices.maxOfOrNull { it.second }?.toFloat() ?: 0f
+    if (max == 0f) return
+    Canvas(Modifier.size(width = 300.dp, height = 220.dp)) {
+        val bw = size.width / (slices.size * 2f)
+        slices.forEachIndexed { i, s ->
+            val h = s.second / max * size.height
+            drawRect(
+                color = PALETTE[i % PALETTE.size],
+                topLeft = Offset(bw * (2 * i + 0.5f), size.height - h),
+                size = Size(bw, h)
+            )
+        }
+    }
+}
