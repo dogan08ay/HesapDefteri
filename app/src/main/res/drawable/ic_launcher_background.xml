@@ -12,12 +12,9 @@
                 android:startY="0"
                 android:endX="108"
                 android:endY="108"
-                android:startColor="#22B57C"
-                android:endColor="#0A3D2A"
+                android:startColor="#1AA67E"
+                android:endColor="#08392E"
                 android:type="linear" />
         </aapt:attr>
     </path>
-    <path
-        android:fillColor="#14FFFFFF"
-        android:pathData="M-10,-20 A60,60 0 1,1 110,-20 A60,60 0 1,1 -10,-20 Z" />
 </vector>

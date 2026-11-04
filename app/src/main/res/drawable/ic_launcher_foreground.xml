@@ -8,42 +8,58 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:scaleX="0.94"
-        android:scaleY="0.94">
+        android:scaleX="0.88"
+        android:scaleY="0.88">
+        <!-- gölge -->
         <path
-            android:fillColor="#E6DBBC"
-            android:pathData="M54,78 C45,72 35,70 24,72 L24,52 C35,50 45,52 54,58 Z" />
+            android:fillColor="#40000000"
+            android:pathData="M35,20 L75,20 A5,5 0 0 1 80,25 L80,89 A5,5 0 0 1 75,94 L35,94 A5,5 0 0 1 30,89 L30,25 A5,5 0 0 1 35,20 Z" />
+        <!-- sayfa kenarı -->
         <path
-            android:fillColor="#F8F1DE"
-            android:pathData="M54,78 C63,72 73,70 84,72 L84,52 C73,50 63,52 54,58 Z" />
-        <path android:pathData="M72,38 A18,18 0 1,1 36,38 A18,18 0 1,1 72,38 Z">
+            android:fillColor="#F6EED8"
+            android:pathData="M38,19.5 L78,19.5 A5,5 0 0 1 83,24.5 L83,88.5 A5,5 0 0 1 78,93.5 L38,93.5 A5,5 0 0 1 33,88.5 L33,24.5 A5,5 0 0 1 38,19.5 Z" />
+        <!-- kapak -->
+        <path android:pathData="M35,17 L75,17 A5,5 0 0 1 80,22 L80,86 A5,5 0 0 1 75,91 L35,91 A5,5 0 0 1 30,86 L30,22 A5,5 0 0 1 35,17 Z">
             <aapt:attr name="android:fillColor">
                 <gradient
-                    android:startX="36"
-                    android:startY="20"
-                    android:endX="72"
-                    android:endY="56"
-                    android:startColor="#FFE9A0"
-                    android:endColor="#E5A91A"
+                    android:startX="30"
+                    android:startY="17"
+                    android:endX="80"
+                    android:endY="91"
+                    android:startColor="#F7C95A"
+                    android:endColor="#D48A14"
                     android:type="linear" />
             </aapt:attr>
         </path>
+        <!-- sırt -->
         <path
-            android:pathData="M72,38 A18,18 0 1,1 36,38 A18,18 0 1,1 72,38 Z"
-            android:strokeColor="#B57A00"
-            android:strokeWidth="1.6" />
+            android:fillColor="#A9660B"
+            android:pathData="M35,17 L39,17 L39,91 L35,91 A5,5 0 0 1 30,86 L30,22 A5,5 0 0 1 35,17 Z" />
+        <!-- lastik bant -->
         <path
-            android:pathData="M67.5,38 A13.5,13.5 0 1,1 40.5,38 A13.5,13.5 0 1,1 67.5,38 Z"
-            android:strokeColor="#CCFFF4C8"
-            android:strokeWidth="1.2" />
+            android:fillColor="#6B3E06"
+            android:pathData="M69,17 L72.5,17 L72.5,91 L69,91 Z" />
+        <!-- dikiş -->
         <path
-            android:pathData="M45,44 L51,38 L56,42 L63,34"
-            android:strokeColor="#7A4E00"
-            android:strokeWidth="3"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round" />
+            android:pathData="M42,22 L42,86"
+            android:strokeColor="#96FFE6A6"
+            android:strokeWidth="0.7" />
+        <!-- ₺ (kabartma) -->
+        <group android:translateX="0.6" android:translateY="0.8">
+            <path
+                android:fillColor="#D2FFEEBB"
+                android:pathData="M46.27 45.85 45.44 44.06 49.1 42.35V35H54.77V39.69L57.53 38.39L58.38 40.2L54.77 41.88V44.14L57.56 42.82L58.41 44.64L54.77 46.33V52.71Q56.04 52.71 57.95 50.99Q59.85 49.26 59.85 45.98H65.56Q65.56 48.47 64.81 50.42Q64.05 52.37 62.51 53.86Q60.74 55.57 58.26 56.29Q55.79 57 53.05 57H49.1V48.97L46.3 50.28L45.47 48.5L49.1 46.8V44.53Z" />
+        </group>
         <path
-            android:fillColor="#7A4E00"
-            android:pathData="M67.5,30 L60.5,31.5 L66,37.5 Z" />
+            android:fillColor="#4A2A00"
+            android:pathData="M46.27 45.85 45.44 44.06 49.1 42.35V35H54.77V39.69L57.53 38.39L58.38 40.2L54.77 41.88V44.14L57.56 42.82L58.41 44.64L54.77 46.33V52.71Q56.04 52.71 57.95 50.99Q59.85 49.26 59.85 45.98H65.56Q65.56 48.47 64.81 50.42Q64.05 52.37 62.51 53.86Q60.74 55.57 58.26 56.29Q55.79 57 53.05 57H49.1V48.97L46.3 50.28L45.47 48.5L49.1 46.8V44.53Z" />
+        <!-- yükselen çubuklar -->
+        <path
+            android:fillColor="#4A2A00"
+            android:pathData="M48.5,73 L51.7,73 L51.7,78 L48.5,78 Z M53.3,70 L56.5,70 L56.5,78 L53.3,78 Z M58.1,66 L61.3,66 L61.3,78 L58.1,78 Z" />
+        <!-- yer imi -->
+        <path
+            android:fillColor="#D63B3B"
+            android:pathData="M60,91 L66,91 L66,101 L63,98 L60,101 Z" />
     </group>
 </vector>
