@@ -90,3 +90,33 @@ fun cardInfo(acc: Account, accounts: List<Account>, txns: List<Txn>, today: Loca
     val remaining = if (limit != null) limit - debtToday - future else null
     return CardInfo(limit, remaining, debtToday, future, day, last, prev, next, statement, period)
 }
+
+/** Tohumlanan genel hesaplar. Gerçek bir hesap eklenince ilgili grupta gereksiz kalırlar. */
+val PLACEHOLDERS: Map<String, String> = mapOf(
+    "Banka hesapları" to "Vadesiz hesap",
+    "Kredi kartları" to "Kredi kartı",
+    "Krediler" to "Banka kredisi",
+    "Özel borçlar" to "Kişisel borç",
+    "Fatura borçları" to "Fatura borcu",
+    "Alacaklar" to "Alacak",
+    "Yatırım fonları" to "Fon",
+    "Hisse senetleri" to "Hisse portföyü",
+    "Diğer varlıklar" to "Diğer varlık"
+)
+
+fun isPlaceholder(a: Account): Boolean =
+    a.parentId == null &&
+        (a.type == AccountType.ASSET || a.type == AccountType.LIABILITY) &&
+        PLACEHOLDERS[a.groupName] == a.name
+
+/** Aynı grupta gerçek (adı verilmiş) bir hesap varken artık kalan varsayılan hesaplar. */
+fun supersededPlaceholders(accounts: List<Account>): List<Account> {
+    val realGroups = accounts.filter { !isPlaceholder(it) }.map { it.type to it.groupName }.toSet()
+    return accounts.filter { isPlaceholder(it) && (it.type to it.groupName) in realGroups }
+}
+
+/** İşlem girerken seçilebilecek hesaplar: gereksiz kalan varsayılan hesaplar gizlenir. */
+fun selectable(accounts: List<Account>): List<Account> {
+    val hide = supersededPlaceholders(accounts).map { it.id }.toSet()
+    return accounts.filter { it.id !in hide }
+}

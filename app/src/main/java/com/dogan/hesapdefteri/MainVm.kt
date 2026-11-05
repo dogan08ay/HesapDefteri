@@ -23,7 +23,18 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         dao.favorites().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
-        viewModelScope.launch { if (dao.accountCount() == 0) seed() }
+        viewModelScope.launch {
+            if (dao.accountCount() == 0) seed()
+            cleanupPlaceholders()
+        }
+    }
+
+    /** Gerçek hesap eklendiğinde, işlemi olmayan varsayılan (adsız) hesapları kaldırır. */
+    private suspend fun cleanupPlaceholders() {
+        val accs = dao.accountsOnce()
+        val used = HashSet<Long>()
+        dao.txnsOnce().forEach { used.add(it.fromId); used.add(it.toId) }
+        supersededPlaceholders(accs).filter { it.id !in used }.forEach { dao.deleteAccount(it) }
     }
 
     private suspend fun seed() {
@@ -78,6 +89,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
                 limitCents = limitCents, cutoffDay = cutoffDay
             )
             val id = dao.insertAccount(a)
+            cleanupPlaceholders()
             onDone(a.copy(id = id))
         }
     }
@@ -98,7 +110,10 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     }
 
     fun updateTxn(t: Txn) {
-        viewModelScope.launch { dao.updateTxn(t) }
+        viewModelScope.launch {
+            dao.updateTxn(t)
+            cleanupPlaceholders()
+        }
     }
 
     fun exportJson(): String {
@@ -181,7 +196,10 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteTxn(t: Txn) {
-        viewModelScope.launch { dao.deleteTxn(t) }
+        viewModelScope.launch {
+            dao.deleteTxn(t)
+            cleanupPlaceholders()
+        }
     }
 
     fun resetAll() {

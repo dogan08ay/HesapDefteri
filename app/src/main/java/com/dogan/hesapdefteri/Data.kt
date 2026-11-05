@@ -65,6 +65,12 @@ interface AppDao {
     @Query("SELECT * FROM favorites ORDER BY id")
     fun favorites(): Flow<List<Favorite>>
 
+    @Query("SELECT * FROM accounts")
+    suspend fun accountsOnce(): List<Account>
+
+    @Query("SELECT * FROM transactions")
+    suspend fun txnsOnce(): List<Txn>
+
     @Query("SELECT COUNT(*) FROM accounts")
     suspend fun accountCount(): Int
 

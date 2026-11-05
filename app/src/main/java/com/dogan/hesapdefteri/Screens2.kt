@@ -2,6 +2,12 @@
 
 package com.dogan.hesapdefteri
 
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -114,12 +120,19 @@ fun SettingsScreen(onBack: () -> Unit, onHome: () -> Unit, onReset: () -> Unit) 
 }
 
 @Composable
-fun PinKey(label: String, onClick: () -> Unit) {
+fun PinKey(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(6.dp)
     Box(
-        Modifier.size(76.dp).clip(CircleShape).background(Color.White).clickable(onClick = onClick),
+        modifier
+            .height(60.dp)
+            .shadow(3.dp, shape)
+            .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFE2E2E2))), shape)
+            .border(BorderStroke(1.5.dp, SilverBorder), shape)
+            .clip(shape)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = 26.sp, fontWeight = FontWeight.Medium, color = Color(0xFF222222))
+        Text(label, fontSize = if (label.length > 1) 20.sp else 26.sp, color = Color(0xFF222222))
     }
 }
 
@@ -150,42 +163,72 @@ fun LockScreen(onUnlock: () -> Unit) {
     }
 
     AppBackground {
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(Modifier.weight(1f))
-            LogoMark(Modifier.size(76.dp))
-            Spacer(Modifier.height(10.dp))
-            Text("Hesap Defteri", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = GreenText)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                if (error) "PIN hatalı, tekrar dene" else "PIN kodunu gir",
-                fontSize = 13.sp,
-                color = if (error) NegativeRed else Color.Gray
-            )
-            Spacer(Modifier.height(22.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                val dots = if (savedLen > 0) savedLen else maxOf(4, pin.length)
-                for (i in 0 until dots) {
-                    Box(
-                        Modifier.size(14.dp).clip(CircleShape)
-                            .background(if (i < pin.length) GreenText else Color(0x33000000))
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                LogoMark(Modifier.size(76.dp))
+                Spacer(Modifier.height(10.dp))
+                Text("Hesap Defteri", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = GreenText)
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    Modifier
+                        .background(
+                            Brush.horizontalGradient(
+                                if (error) listOf(Color(0xFFC0392B), Color(0xFF8E2A20))
+                                else listOf(Color(0xFF1E8A5E), Color(0xFF3F6E80))
+                            ),
+                            RoundedCornerShape(22.dp)
+                        )
+                        .padding(horizontal = 22.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        if (error) "Şifre hatalı, tekrar deneyin" else "Şifrenizi girin",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
                     )
                 }
             }
-            Spacer(Modifier.weight(0.7f))
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "⌫")).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                        row.forEach { key ->
-                            if (key.isEmpty()) Spacer(Modifier.size(76.dp))
-                            else PinKey(key) { if (key == "⌫") back() else press(key) }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color(0xFF7C7871), Color(0xFF55534E))))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val boxes = if (savedLen > 0) savedLen else maxOf(4, pin.length)
+                    for (i in 0 until boxes) {
+                        val bshape = RoundedCornerShape(8.dp)
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .shadow(3.dp, bshape)
+                                .background(Color.White, bshape)
+                                .border(BorderStroke(1.5.dp, SilverBorder), bshape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (i < pin.length) Text("●", fontSize = 26.sp, color = Color(0xFF222222))
                         }
                     }
                 }
+                Spacer(Modifier.height(2.dp))
+                listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9")).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { key -> PinKey(key, Modifier.weight(1f)) { press(key) } }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PinKey("Sil", Modifier.weight(1f)) { back() }
+                    PinKey("0", Modifier.weight(1f)) { press("0") }
+                    PinKey("Vazgeç", Modifier.weight(1f)) { pin = ""; error = false }
+                }
+                Spacer(Modifier.height(10.dp))
             }
-            Spacer(Modifier.height(32.dp))
         }
     }
 }

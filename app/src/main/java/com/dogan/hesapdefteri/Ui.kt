@@ -450,7 +450,7 @@ fun App(vm: MainVm) {
         is Screen.AddTxn -> {
             val bal = remember(accounts, txns, month) { balances(accounts, txns, month) }
             AddTxnScreen(
-                s.type, accounts, bal, s.fav, s.preset, s.accountId, null,
+                s.type, selectable(accounts), bal, s.fav, s.preset, s.accountId, null,
                 onBack = { goBack() },
                 onHome = { screen = Screen.Home },
                 onNewAccount = { name, group, type, parentId, limit, cutoff, done ->
@@ -940,6 +940,7 @@ fun GroupScreen(
     val byId = remember(accounts) { accounts.associateBy { it.id } }
     val mine = accounts.filter { it.type == type && it.groupName == group }
     val tree = remember(mine) { flatTree(mine) }
+    val staleIds = remember(accounts) { supersededPlaceholders(accounts).map { it.id }.toSet() }
     val ids = mine.map { it.id }.toSet()
     val total = mine.sumOf { bal[it.id] ?: 0L }
     val periodic = type == AccountType.INCOME || type == AccountType.EXPENSE
@@ -1011,6 +1012,13 @@ fun GroupScreen(
                                         "Kalan limit: " + money(rem),
                                         fontSize = 10.sp,
                                         color = if (rem < 0) NegativeRed else Color.Gray
+                                    )
+                                }
+                                if (a.id in staleIds) {
+                                    Text(
+                                        "Varsayılan hesap · işlemlerini kendi hesabına taşı, sonra kendiliğinden kalkar",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFFB36B00)
                                     )
                                 }
                             }
