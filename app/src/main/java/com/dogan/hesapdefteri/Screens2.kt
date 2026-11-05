@@ -121,10 +121,10 @@ fun SettingsScreen(onBack: () -> Unit, onHome: () -> Unit, onReset: () -> Unit) 
 
 @Composable
 fun PinKey(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = RoundedCornerShape(14.dp)
     Box(
         modifier
-            .height(60.dp)
+            .height(50.dp)
             .shadow(3.dp, shape)
             .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFE2E2E2))), shape)
             .border(BorderStroke(1.5.dp, SilverBorder), shape)
@@ -132,7 +132,7 @@ fun PinKey(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = if (label.length > 1) 20.sp else 26.sp, color = Color(0xFF222222))
+        Text(label, fontSize = if (label.length > 1) 18.sp else 24.sp, color = Color(0xFF222222))
     }
 }
 
@@ -196,13 +196,13 @@ fun LockScreen(onUnlock: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color(0xFF7C7871), Color(0xFF55534E))))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 34.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     val boxes = if (savedLen > 0) savedLen else maxOf(4, pin.length)
                     for (i in 0 until boxes) {
-                        val bshape = RoundedCornerShape(8.dp)
+                        val bshape = RoundedCornerShape(14.dp)
                         Box(
                             Modifier
                                 .weight(1f)

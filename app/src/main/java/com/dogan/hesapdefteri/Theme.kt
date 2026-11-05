@@ -125,45 +125,52 @@ fun LogoMark(modifier: Modifier = Modifier) {
         val k = size.width / 108f
         drawRoundRect(
             brush = Brush.linearGradient(
-                listOf(Color(0xFF1AA67E), Color(0xFF08392E)),
+                listOf(Color(0xFF1FAE7E), Color(0xFF054A36)),
                 start = Offset(0f, 0f),
                 end = Offset(size.width, size.height)
             ),
             cornerRadius = CornerRadius(24f * k, 24f * k)
         )
-        withTransform({
-            scale(k, k, Offset(0f, 0f))
-            scale(0.88f, 0.88f, Offset(54f, 54f))
-        }) {
-            drawRoundRect(color = Color(0x40000000), topLeft = Offset(30f, 20f), size = Size(50f, 74f), cornerRadius = CornerRadius(5f, 5f))
-            drawRoundRect(color = Color(0xFFF6EED8), topLeft = Offset(33f, 19.5f), size = Size(50f, 74f), cornerRadius = CornerRadius(5f, 5f))
-            drawRoundRect(
-                brush = Brush.linearGradient(
-                    listOf(Color(0xFFF7C95A), Color(0xFFD48A14)),
-                    start = Offset(30f, 17f),
-                    end = Offset(80f, 91f)
+        fun poly(color: Color, vararg p: Float) {
+            val path = Path()
+            path.moveTo(p[0], p[1])
+            var i = 2
+            while (i < p.size) { path.lineTo(p[i], p[i + 1]); i += 2 }
+            path.close()
+            drawPath(path, color)
+        }
+        withTransform({ scale(k, k, Offset(0f, 0f)) }) {
+            // defter kapağı ve sayfalar
+            poly(Color(0xFF8A5A12), 23f, 52f, 54f, 59f, 85f, 52f, 85f, 85f, 54f, 92f, 23f, 85f)
+            poly(Color(0xFFFFF6DC), 26f, 50f, 52f, 56f, 52f, 86f, 26f, 80f)
+            poly(Color(0xFFFFFBEF), 82f, 50f, 56f, 56f, 56f, 86f, 82f, 80f)
+            drawLine(Color(0xFF8A5A12), Offset(54f, 56f), Offset(54f, 92f), strokeWidth = 1.6f)
+            // sütun çizgileri
+            val ln = Color(0xFFC9A24A)
+            listOf(62f to 66f, 69f to 73f, 76f to 80f).forEach { (y1, y2) ->
+                drawLine(ln, Offset(31f, y1), Offset(47f, y2), strokeWidth = 1.8f, cap = StrokeCap.Round)
+            }
+            listOf(66f to 62f, 73f to 69f).forEach { (y1, y2) ->
+                drawLine(ln, Offset(61f, y1), Offset(77f, y2), strokeWidth = 1.8f, cap = StrokeCap.Round)
+            }
+            // yükselen çubuklar
+            val bar = Color(0xFF1FAE7E)
+            drawRect(bar, Offset(61f, 80f), Size(4f, 5f))
+            drawRect(bar, Offset(67f, 76f), Size(4f, 9f))
+            drawRect(bar, Offset(73f, 71f), Size(4f, 14f))
+            // ₺ madeni para
+            drawCircle(
+                brush = Brush.verticalGradient(
+                    listOf(Color(0xFFFFD76A), Color(0xFFE0A020)),
+                    startY = 23f, endY = 53f
                 ),
-                topLeft = Offset(30f, 17f),
-                size = Size(50f, 74f),
-                cornerRadius = CornerRadius(5f, 5f)
+                radius = 15f, center = Offset(54f, 38f)
             )
-            drawRoundRect(color = Color(0xFFA9660B), topLeft = Offset(30f, 17f), size = Size(9f, 74f), cornerRadius = CornerRadius(5f, 5f))
-            drawRect(color = Color(0xFFA9660B), topLeft = Offset(34f, 17f), size = Size(5f, 74f))
-            drawRect(color = Color(0xFF6B3E06), topLeft = Offset(69f, 17f), size = Size(3.5f, 74f))
-            drawLine(color = Color(0x96FFE6A6), start = Offset(42f, 22f), end = Offset(42f, 86f), strokeWidth = 0.7f)
-            withTransform({ translate(0.6f, 0.8f) }) { drawPath(lira, Color(0xD2FFEEBB)) }
-            drawPath(lira, Color(0xFF4A2A00))
-            drawRect(color = Color(0xFF4A2A00), topLeft = Offset(48.5f, 73f), size = Size(3.2f, 5f))
-            drawRect(color = Color(0xFF4A2A00), topLeft = Offset(53.3f, 70f), size = Size(3.2f, 8f))
-            drawRect(color = Color(0xFF4A2A00), topLeft = Offset(58.1f, 66f), size = Size(3.2f, 12f))
-            val ribbon = Path()
-            ribbon.moveTo(60f, 91f)
-            ribbon.lineTo(66f, 91f)
-            ribbon.lineTo(66f, 101f)
-            ribbon.lineTo(63f, 98f)
-            ribbon.lineTo(60f, 101f)
-            ribbon.close()
-            drawPath(ribbon, Color(0xFFD63B3B))
+            drawCircle(Color(0xFFB87A10), radius = 15f, center = Offset(54f, 38f), style = Stroke(width = 1.6f))
+            withTransform({
+                translate(-1.5f, -8f)
+                scale(0.7f, 0.7f, Offset(55.5f, 46f))
+            }) { drawPath(lira, Color(0xFF4A2A00)) }
         }
     }
 }
