@@ -52,4 +52,6 @@ Bu sürümde:
 • Yan menüden yedekleme, geri yükleme ve tüm işlemleri CSV olarak indirme
 • Listelerde ⤓ CSV ile o listeyi dosya olarak kaydetme
 • Kredi kartında son taksit satırı renkli gösterilir
+• Hesap grubunda yalnızca hesaplar listelenir; bir hesaba dokununca o hesabın hareketleri açılır
+• Hesap ekranında dönem kutusuna dokunup aylık dönem seçilir, seçilen ayın hareketleri Tarih · Karşı Hesap · Tutar tablosunda görünür
 • Fatura Giderleri altında hazır kalemler: Elektrik, Su, Doğalgaz, İnternet, Cep telefonu"""

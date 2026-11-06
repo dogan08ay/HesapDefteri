@@ -662,3 +662,34 @@ fun BarChart(slices: List<Pair<String, Long>>) {
         }
     }
 }
+/** Görseldeki gibi: takvim rozetli, dokununca "Dönem Seçiniz" ekranını açan kutu. */
+@Composable
+fun PeriodSelector(month: YearMonth, onClick: () -> Unit) {
+    val f1 = DateTimeFormatter.ofPattern("dd MMM", TR)
+    val f2 = DateTimeFormatter.ofPattern("dd MMM, yyyy", TR)
+    val label = "Döneminiz: " + month.atDay(1).format(f1) + ", " + month.atEndOfMonth().format(f2)
+    val shape = RoundedCornerShape(24.dp)
+    Box(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 22.dp)
+                .shadow(3.dp, shape)
+                .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFEDEDED))), shape)
+                .border(BorderStroke(1.5.dp, SilverBorder), shape)
+                .padding(end = 10.dp)
+                .heightIn(min = 38.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.width(34.dp))
+            Text(
+                label,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                textAlign = TextAlign.Center,
+                color = GreenText,
+                fontSize = 13.sp
+            )
+        }
+        CalendarBadge(Modifier.align(Alignment.CenterStart).size(46.dp))
+    }
+}

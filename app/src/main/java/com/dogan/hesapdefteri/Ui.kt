@@ -13,6 +13,8 @@ import android.widget.Toast
 import android.os.SystemClock
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.AlertDialog
@@ -103,6 +105,7 @@ sealed interface Screen {
     ) : Screen
     data class AddAccount(val type: AccountType, val group: String, val parentId: Long?, val back: Screen) : Screen
     data class EditTxn(val txnId: Long, val back: Screen) : Screen
+    data class PeriodPick(val back: Screen) : Screen
     data object Favorites : Screen
     data object Update : Screen
     data object Settings : Screen
@@ -338,6 +341,7 @@ fun App(vm: MainVm) {
             is Screen.AddTxn -> s.back
             is Screen.AddAccount -> s.back
             is Screen.EditTxn -> s.back
+            is Screen.PeriodPick -> s.back
             Screen.Favorites, Screen.Update, Screen.Settings, Screen.PinSetup, is Screen.Info -> Screen.Home
         }
     }
@@ -432,9 +436,15 @@ fun App(vm: MainVm) {
             onAddTxn = { openNewTx(s.type, s.group, s, s.accountId) },
             onOpenAccount = { a -> screen = Screen.AccountDetail(s.type, s.group, a.id) },
             onAddSub = { screen = Screen.AddAccount(s.type, s.group, s.accountId, s) },
+            onPickPeriod = { screen = Screen.PeriodPick(s) },
             onUpdateAccount = { vm.updateAccount(it) },
             onEdit = { t -> screen = Screen.EditTxn(t.id, s) },
             onDelete = { vm.deleteTxn(it) }
+        )
+        is Screen.PeriodPick -> PeriodPickScreen(
+            txns, month,
+            onPick = { month = it; screen = s.back },
+            onBack = { goBack() }
         )
         is Screen.Chart -> ChartScreen(
             s.type, s.group, accounts, txns, month, s.pie,
@@ -1052,7 +1062,6 @@ fun GroupScreen(
                         AddPanel(addLabel(type, group), typeColor(type)) { onAddAccount(null) }
                     }
                 }
-                TxnTable("İşlemler", list, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
             }
         }
     }
@@ -1165,6 +1174,7 @@ fun AccountDetailScreen(
     onAddTxn: () -> Unit,
     onOpenAccount: (Account) -> Unit,
     onAddSub: () -> Unit,
+    onPickPeriod: () -> Unit,
     onUpdateAccount: (Account) -> Unit,
     onEdit: (Txn) -> Unit,
     onDelete: (Txn) -> Unit
@@ -1178,9 +1188,8 @@ fun AccountDetailScreen(
     val periodic = type == AccountType.INCOME || type == AccountType.EXPENSE
     val start = month.atDay(1).toEpochDay()
     val end = month.atEndOfMonth().toEpochDay()
-    val list = txns.filter { t ->
-        (t.fromId in ids || t.toId in ids) && (!periodic || t.date in start..end)
-    }
+    val allList = txns.filter { t -> t.fromId in ids || t.toId in ids }
+    val list = allList.filter { it.date in start..end }
     val v = roll[accountId] ?: 0L
     val crumb = if (acc != null) "${type.label} › ${trail(acc, byId)}" else "${type.label} › $group"
     val isCard = acc != null && acc.type == AccountType.LIABILITY && acc.groupName == G_CARD && acc.parentId == null
@@ -1196,7 +1205,7 @@ fun AccountDetailScreen(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                if (!isCard) PeriodPill(month, onMonth)
+                PeriodSelector(month, onPickPeriod)
                 if (info != null) {
                     CardSummary(info) { cardDialog = true }
                     CsvPanel("Kart hareketlerini indir (CSV)", acc?.name ?: "kart") {
@@ -1205,10 +1214,10 @@ fun AccountDetailScreen(
                         if (lc != null && pc != null) {
                             val l = lc.toEpochDay()
                             val p = pc.toEpochDay()
-                            txnsToCsv(list, byId, "Dönem") { t ->
+                            txnsToCsv(allList, byId, "Dönem") { t ->
                                 if (t.date > l) "Güncel dönem (ekstreye dahil değil)" else if (t.date > p) "Son ekstre" else "Önceki hareketler"
                             }
-                        } else txnsToCsv(list, byId)
+                        } else txnsToCsv(allList, byId)
                     }
                 } else {
                     WhiteBox {
@@ -1250,18 +1259,10 @@ fun AccountDetailScreen(
                         AddPanel("${acc?.name ?: "Kalem"} altına kalem ekle", typeColor(type), onAddSub)
                     }
                 }
-                val lastC = info?.lastCutoff
-                val prevC = info?.prevCutoff
-                if (info != null && lastC != null && prevC != null) {
-                    val l = lastC.toEpochDay()
-                    val p = prevC.toEpochDay()
-                    TxnTable("Güncel dönem (ekstreye dahil değil)", list.filter { it.date > l }, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
-                    TxnTable("Son ekstre · kesim ${lastC.format(dateFmt)}", list.filter { it.date > p && it.date <= l }, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
-                    val older = list.filter { it.date <= p }
-                    if (older.isNotEmpty()) TxnTable("Önceki hareketler", older, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
-                } else {
-                    TxnTable("İşlemler", list, byId, ids, onEdit = { onEdit(it) }) { onDelete(it) }
-                }
+                AccountTxnTable(
+                    "${month.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", TR))} hareketleri",
+                    list, byId, ids, onEdit = { onEdit(it) }
+                ) { onDelete(it) }
             }
         }
     }
@@ -1957,5 +1958,140 @@ fun DailyCard(accounts: List<Account>, txns: List<Txn>, onEdit: (Txn) -> Unit) {
             sub = { t -> (if (byId[t.fromId]?.type == AccountType.LIABILITY) "Borçlanma" else "Hesaplar arası") + note(t) }
         )
         Spacer(Modifier.height(4.dp))
+    }
+}
+
+
+/** Hesaba özel hareket tablosu: Tarih · Karşı Hesap · Tutar (hesabın bakışıyla işaretli). */
+@Composable
+fun AccountTxnTable(
+    title: String,
+    list: List<Txn>,
+    byId: Map<Long, Account>,
+    ids: Set<Long>,
+    onEdit: (Txn) -> Unit,
+    onDelete: (Txn) -> Unit
+) {
+    var pendingDelete by remember { mutableStateOf<Txn?>(null) }
+    val today = remember { LocalDate.now().toEpochDay() }
+    fun counter(t: Txn): String {
+        val fromIn = t.fromId in ids
+        val toIn = t.toId in ids
+        val f = byId[t.fromId]?.name ?: "?"
+        val to = byId[t.toId]?.name ?: "?"
+        return if (fromIn && toIn) "$f → $to" else if (fromIn) to else f
+    }
+    WhiteBox {
+        Box(Modifier.fillMaxWidth()) {
+            SectionHeader(title)
+            if (list.isNotEmpty()) {
+                CsvLink(title, Modifier.align(Alignment.CenterEnd)) { txnsToCsv(list, byId) }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text("Tarih", Modifier.weight(0.28f), color = GreenText, fontSize = 12.sp)
+            Text("Karşı Hesap", Modifier.weight(0.42f), color = GreenText, fontSize = 12.sp)
+            Text("Tutar", Modifier.weight(0.30f), color = GreenText, fontSize = 12.sp, textAlign = TextAlign.End)
+        }
+        HorizontalDivider(Modifier.padding(horizontal = 10.dp), color = Color(0xFF666666), thickness = 1.5.dp)
+        if (list.isEmpty()) {
+            Text("Bu dönemde işlem yok.", Modifier.padding(14.dp), color = Color.Gray, fontSize = 12.sp)
+        }
+        list.forEach { t ->
+            val d = txnDelta(t, byId, ids)
+            val fl = installmentFlag(t, today)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(fl?.accent ?: Color.Transparent)
+                    .clickable { onEdit(t) }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(dayText(t.date), Modifier.weight(0.28f), fontSize = 12.sp)
+                Column(Modifier.weight(0.42f).padding(end = 6.dp)) {
+                    Text(counter(t), fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (t.note.isNotBlank()) {
+                        Text(t.note, fontSize = 10.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (fl != null) {
+                        Box(Modifier.padding(top = 2.dp).background(fl.chip, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                            Text(fl.badge, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Text(
+                    (if (d < 0) "-" else "") + money(kotlin.math.abs(d)),
+                    Modifier.weight(0.30f),
+                    textAlign = TextAlign.End,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (d < 0) NegativeRed else Color(0xFF222222)
+                )
+                IconButton(onClick = { pendingDelete = t }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Sil", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                }
+            }
+            HorizontalDivider(Modifier.padding(horizontal = 10.dp), color = Color(0xFFBBBBBB))
+        }
+    }
+    pendingDelete?.let { t ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("İşlem silinsin mi?") },
+            text = { Text("${counter(t)}  ${money(t.cents)}\n${dayText(t.date)}") },
+            confirmButton = { TextButton(onClick = { onDelete(t); pendingDelete = null }) { Text("Sil") } },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Vazgeç") } }
+        )
+    }
+}
+
+/** "Dönem Seçiniz": aylık dönemler, en yeni üstte. */
+@Composable
+fun PeriodPickScreen(
+    txns: List<Txn>,
+    selected: YearMonth,
+    onPick: (YearMonth) -> Unit,
+    onBack: () -> Unit
+) {
+    val months = remember(txns) {
+        val now = YearMonth.now()
+        val dates = txns.map { YearMonth.from(LocalDate.ofEpochDay(it.date)) }
+        val newest = maxOf(now.plusMonths(1), dates.maxOrNull() ?: now)
+        val oldest = minOf(now.minusMonths(23), dates.minOrNull() ?: now)
+        generateSequence(newest) { it.minusMonths(1) }.takeWhile { !it.isBefore(oldest) }.toList()
+    }
+    val f1 = DateTimeFormatter.ofPattern("dd MMM", TR)
+    val f2 = DateTimeFormatter.ofPattern("dd MMM, yyyy", TR)
+    AppBackground {
+        Column(Modifier.fillMaxSize()) {
+            TopBar("Dönem Seçiniz", onBack, null)
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                months.forEach { m ->
+                    val shape = RoundedCornerShape(12.dp)
+                    val isSel = m == selected
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .shadow(3.dp, shape)
+                            .background(Brush.verticalGradient(listOf(Color.White, if (isSel) Color(0xFFDDEBD3) else Color(0xFFEDEDED))), shape)
+                            .border(BorderStroke(1.5.dp, SilverBorder), shape)
+                            .clickable { onPick(m) }
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            m.atDay(1).format(f1) + ", " + m.atEndOfMonth().format(f2),
+                            Modifier.weight(1f),
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color(0xFF1E7A4A))
+                    }
+                }
+            }
+        }
     }
 }
