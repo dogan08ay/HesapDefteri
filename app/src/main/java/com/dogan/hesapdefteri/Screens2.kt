@@ -2,6 +2,7 @@
 
 package com.dogan.hesapdefteri
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Brush
@@ -121,10 +122,10 @@ fun SettingsScreen(onBack: () -> Unit, onHome: () -> Unit, onReset: () -> Unit) 
 
 @Composable
 fun PinKey(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(6.dp)
     Box(
         modifier
-            .height(50.dp)
+            .height(44.dp)
             .shadow(3.dp, shape)
             .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFE2E2E2))), shape)
             .border(BorderStroke(1.5.dp, SilverBorder), shape)
@@ -132,7 +133,7 @@ fun PinKey(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = if (label.length > 1) 18.sp else 24.sp, color = Color(0xFF222222))
+        Text(label, fontSize = if (label.length > 1) 16.sp else 22.sp, color = Color(0xFF222222))
     }
 }
 
@@ -196,38 +197,42 @@ fun LockScreen(onUnlock: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color(0xFF7C7871), Color(0xFF55534E))))
-                    .padding(horizontal = 34.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                ) {
                     val boxes = if (savedLen > 0) savedLen else maxOf(4, pin.length)
                     for (i in 0 until boxes) {
-                        val bshape = RoundedCornerShape(14.dp)
+                        val bshape = RoundedCornerShape(8.dp)
                         Box(
                             Modifier
-                                .weight(1f)
+                                .weight(1f, fill = false)
+                                .widthIn(max = 46.dp)
                                 .aspectRatio(1f)
                                 .shadow(3.dp, bshape)
                                 .background(Color.White, bshape)
                                 .border(BorderStroke(1.5.dp, SilverBorder), bshape),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (i < pin.length) Text("●", fontSize = 26.sp, color = Color(0xFF222222))
+                            if (i < pin.length) Text("●", fontSize = 20.sp, color = Color(0xFF222222))
                         }
                     }
                 }
                 Spacer(Modifier.height(2.dp))
                 listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9")).forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         row.forEach { key -> PinKey(key, Modifier.weight(1f)) { press(key) } }
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     PinKey("Sil", Modifier.weight(1f)) { back() }
                     PinKey("0", Modifier.weight(1f)) { press("0") }
                     PinKey("Vazgeç", Modifier.weight(1f)) { pin = ""; error = false }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
             }
         }
     }

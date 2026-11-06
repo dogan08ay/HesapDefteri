@@ -116,7 +116,7 @@ fun AppBackground(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-private const val LIRA_PATH = "M46.27 45.85 45.44 44.06 49.1 42.35V35H54.77V39.69L57.53 38.39L58.38 40.2L54.77 41.88V44.14L57.56 42.82L58.41 44.64L54.77 46.33V52.71Q56.04 52.71 57.95 50.99Q59.85 49.26 59.85 45.98H65.56Q65.56 48.47 64.81 50.42Q64.05 52.37 62.51 53.86Q60.74 55.57 58.26 56.29Q55.79 57 53.05 57H49.1V48.97L46.3 50.28L45.47 48.5L49.1 46.8V44.53Z"
+private const val LIRA_PATH = "M64.8 53.97Q64.8 60.7 61.24 63.85Q57.69 67 51.56 67H48.57V57.56L44.56 60.37L43.2 58.45L48.57 54.69V52.3L44.53 55.12L43.2 53.21L48.57 49.43V41H52.08V46.96L56.09 44.13L57.48 46.07L52.08 49.85V52.22L56.12 49.38L57.52 51.31L52.08 55.11V64.11Q56.07 64.11 58.57 61.67Q61.07 59.23 61.07 53.97Z"
 
 @Composable
 fun LogoMark(modifier: Modifier = Modifier) {
@@ -125,52 +125,39 @@ fun LogoMark(modifier: Modifier = Modifier) {
         val k = size.width / 108f
         drawRoundRect(
             brush = Brush.linearGradient(
-                listOf(Color(0xFF1FAE7E), Color(0xFF054A36)),
+                listOf(Color(0xFF1FB886), Color(0xFF073328)),
                 start = Offset(0f, 0f),
                 end = Offset(size.width, size.height)
             ),
             cornerRadius = CornerRadius(24f * k, 24f * k)
         )
-        fun poly(color: Color, vararg p: Float) {
-            val path = Path()
-            path.moveTo(p[0], p[1])
-            var i = 2
-            while (i < p.size) { path.lineTo(p[i], p[i + 1]); i += 2 }
-            path.close()
-            drawPath(path, color)
-        }
-        withTransform({ scale(k, k, Offset(0f, 0f)) }) {
-            // defter kapağı ve sayfalar
-            poly(Color(0xFF8A5A12), 23f, 52f, 54f, 59f, 85f, 52f, 85f, 85f, 54f, 92f, 23f, 85f)
-            poly(Color(0xFFFFF6DC), 26f, 50f, 52f, 56f, 52f, 86f, 26f, 80f)
-            poly(Color(0xFFFFFBEF), 82f, 50f, 56f, 56f, 56f, 86f, 82f, 80f)
-            drawLine(Color(0xFF8A5A12), Offset(54f, 56f), Offset(54f, 92f), strokeWidth = 1.6f)
-            // sütun çizgileri
-            val ln = Color(0xFFC9A24A)
-            listOf(62f to 66f, 69f to 73f, 76f to 80f).forEach { (y1, y2) ->
-                drawLine(ln, Offset(31f, y1), Offset(47f, y2), strokeWidth = 1.8f, cap = StrokeCap.Round)
-            }
-            listOf(66f to 62f, 73f to 69f).forEach { (y1, y2) ->
-                drawLine(ln, Offset(61f, y1), Offset(77f, y2), strokeWidth = 1.8f, cap = StrokeCap.Round)
-            }
-            // yükselen çubuklar
-            val bar = Color(0xFF1FAE7E)
-            drawRect(bar, Offset(61f, 80f), Size(4f, 5f))
-            drawRect(bar, Offset(67f, 76f), Size(4f, 9f))
-            drawRect(bar, Offset(73f, 71f), Size(4f, 14f))
-            // ₺ madeni para
-            drawCircle(
-                brush = Brush.verticalGradient(
-                    listOf(Color(0xFFFFD76A), Color(0xFFE0A020)),
-                    startY = 23f, endY = 53f
+        withTransform({
+            scale(k, k, Offset(0f, 0f))
+            scale(0.92f, 0.92f, Offset(54f, 54f))
+        }) {
+            drawRoundRect(color = Color(0x38000000), topLeft = Offset(29f, 22f), size = Size(50f, 72f), cornerRadius = CornerRadius(6f, 6f))
+            drawRoundRect(color = Color(0x28000000), topLeft = Offset(29f, 25f), size = Size(50f, 72f), cornerRadius = CornerRadius(6f, 6f))
+            drawRoundRect(color = Color(0xFFFBF9F2), topLeft = Offset(29f, 18f), size = Size(50f, 72f), cornerRadius = CornerRadius(6f, 6f))
+            drawRoundRect(
+                brush = Brush.linearGradient(
+                    listOf(Color(0xFFFFD86B), Color(0xFFE8A31E)),
+                    start = Offset(29f, 18f),
+                    end = Offset(79f, 30f)
                 ),
-                radius = 15f, center = Offset(54f, 38f)
+                topLeft = Offset(29f, 18f),
+                size = Size(50f, 20f),
+                cornerRadius = CornerRadius(6f, 6f)
             )
-            drawCircle(Color(0xFFB87A10), radius = 15f, center = Offset(54f, 38f), style = Stroke(width = 1.6f))
-            withTransform({
-                translate(-1.5f, -8f)
-                scale(0.7f, 0.7f, Offset(55.5f, 46f))
-            }) { drawPath(lira, Color(0xFF4A2A00)) }
+            drawRect(color = Color(0xFFFBF9F2), topLeft = Offset(29f, 30f), size = Size(50f, 10f))
+            drawCircle(color = Color(0xFF9A6205), radius = 2.4f, center = Offset(40f, 24f))
+            drawCircle(color = Color(0xFF9A6205), radius = 2.4f, center = Offset(54f, 24f))
+            drawCircle(color = Color(0xFF9A6205), radius = 2.4f, center = Offset(68f, 24f))
+            withTransform({ translate(0f, 3f) }) {
+                drawPath(lira, Color(0xFF0E7A5A))
+                drawPath(lira, Color(0xFF0E7A5A), style = Stroke(width = 0.7f, join = StrokeJoin.Round))
+            }
+            drawLine(color = Color(0xFFCFDBD4), start = Offset(38f, 78f), end = Offset(70f, 78f), strokeWidth = 1.8f, cap = StrokeCap.Round)
+            drawLine(color = Color(0xFFCFDBD4), start = Offset(38f, 83.5f), end = Offset(60f, 83.5f), strokeWidth = 1.8f, cap = StrokeCap.Round)
         }
     }
 }
