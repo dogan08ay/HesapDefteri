@@ -12,8 +12,8 @@
                 android:startY="0"
                 android:endX="108"
                 android:endY="108"
-                android:startColor="#1AA67E"
-                android:endColor="#08392E"
+                android:startColor="#1FB886"
+                android:endColor="#073328"
                 android:type="linear" />
         </aapt:attr>
     </path>

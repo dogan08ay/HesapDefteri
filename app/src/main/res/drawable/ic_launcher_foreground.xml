@@ -5,66 +5,53 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- defter kapağı -->
-    <path
-        android:fillColor="#8A5A12"
-        android:pathData="M23,52 L54,59 L85,52 L85,85 L54,92 L23,85 Z" />
-    <!-- sol sayfa -->
-    <path
-        android:fillColor="#FFF6DC"
-        android:pathData="M26,50 L52,56 L52,86 L26,80 Z" />
-    <!-- sağ sayfa -->
-    <path
-        android:fillColor="#FFFBEF"
-        android:pathData="M82,50 L56,56 L56,86 L82,80 Z" />
-    <!-- sırt -->
-    <path
-        android:pathData="M54,56 L54,92"
-        android:strokeColor="#8A5A12"
-        android:strokeWidth="1.6" />
-    <!-- sol sütun çizgileri -->
-    <path
-        android:pathData="M31,62 L47,66 M31,69 L47,73 M31,76 L47,80"
-        android:strokeColor="#C9A24A"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round" />
-    <!-- sağ sütun çizgileri -->
-    <path
-        android:pathData="M61,66 L77,62 M61,73 L77,69"
-        android:strokeColor="#C9A24A"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round" />
-    <!-- yükselen çubuklar -->
-    <path
-        android:fillColor="#1FAE7E"
-        android:pathData="M61,80 L65,80 L65,85 L61,85 Z M67,76 L71,76 L71,85 L67,85 Z M73,71 L77,71 L77,85 L73,85 Z" />
-
-    <!-- madeni para -->
-    <path android:pathData="M39,38 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0 Z"
-        android:strokeColor="#B87A10"
-        android:strokeWidth="1.6">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="54"
-                android:startY="23"
-                android:endX="54"
-                android:endY="53"
-                android:startColor="#FFD76A"
-                android:endColor="#E0A020"
-                android:type="linear" />
-        </aapt:attr>
-    </path>
-    <!-- ₺ -->
-    <group android:translateX="-1.5" android:translateY="-8">
-        <group
-            android:pivotX="55.5"
-            android:pivotY="46"
-            android:scaleX="0.7"
-            android:scaleY="0.7">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.92"
+        android:scaleY="0.92">
+        <!-- gölge -->
+        <path
+            android:fillColor="#28000000"
+            android:pathData="M35,25 L73,25 A6,6 0 0 1 79,31 L79,91 A6,6 0 0 1 73,97 L35,97 A6,6 0 0 1 29,91 L29,31 A6,6 0 0 1 35,25 Z" />
+        <path
+            android:fillColor="#38000000"
+            android:pathData="M35,22 L73,22 A6,6 0 0 1 79,28 L79,88 A6,6 0 0 1 73,94 L35,94 A6,6 0 0 1 29,88 L29,28 A6,6 0 0 1 35,22 Z" />
+        <!-- sayfa -->
+        <path
+            android:fillColor="#FBF9F2"
+            android:pathData="M35,18 L73,18 A6,6 0 0 1 79,24 L79,84 A6,6 0 0 1 73,90 L35,90 A6,6 0 0 1 29,84 L29,24 A6,6 0 0 1 35,18 Z" />
+        <!-- altın üst bant -->
+        <path android:pathData="M35,18 L73,18 A6,6 0 0 1 79,24 L79,30 L29,30 L29,24 A6,6 0 0 1 35,18 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="29"
+                    android:startY="18"
+                    android:endX="79"
+                    android:endY="30"
+                    android:startColor="#FFD86B"
+                    android:endColor="#E8A31E"
+                    android:type="linear" />
+            </aapt:attr>
+        </path>
+        <!-- bağlama delikleri -->
+        <path
+            android:fillColor="#9A6205"
+            android:pathData="M42.4,24 A2.4,2.4 0 1,1 37.6,24 A2.4,2.4 0 1,1 42.4,24 Z M56.4,24 A2.4,2.4 0 1,1 51.6,24 A2.4,2.4 0 1,1 56.4,24 Z M70.4,24 A2.4,2.4 0 1,1 65.6,24 A2.4,2.4 0 1,1 70.4,24 Z" />
+        <!-- ₺ -->
+        <group android:translateY="3">
             <path
-                android:fillColor="#4A2A00"
-                android:pathData="M46.27 45.85 45.44 44.06 49.1 42.35V35H54.77V39.69L57.53 38.39L58.38 40.2L54.77 41.88V44.14L57.56 42.82L58.41 44.64L54.77 46.33V52.71Q56.04 52.71 57.95 50.99Q59.85 49.26 59.85 45.98H65.56Q65.56 48.47 64.81 50.42Q64.05 52.37 62.51 53.86Q60.74 55.57 58.26 56.29Q55.79 57 53.05 57H49.1V48.97L46.3 50.28L45.47 48.5L49.1 46.8V44.53Z" />
+                android:fillColor="#0E7A5A"
+                android:strokeColor="#0E7A5A"
+                android:strokeWidth="0.7"
+                android:strokeLineJoin="round"
+                android:pathData="M64.8 53.97Q64.8 60.7 61.24 63.85Q57.69 67 51.56 67H48.57V57.56L44.56 60.37L43.2 58.45L48.57 54.69V52.3L44.53 55.12L43.2 53.21L48.57 49.43V41H52.08V46.96L56.09 44.13L57.48 46.07L52.08 49.85V52.22L56.12 49.38L57.52 51.31L52.08 55.11V64.11Q56.07 64.11 58.57 61.67Q61.07 59.23 61.07 53.97Z" />
         </group>
+        <!-- defter çizgileri -->
+        <path
+            android:pathData="M38,78 L70,78 M38,83.5 L60,83.5"
+            android:strokeColor="#CFDBD4"
+            android:strokeWidth="1.8"
+            android:strokeLineCap="round" />
     </group>
 </vector>
